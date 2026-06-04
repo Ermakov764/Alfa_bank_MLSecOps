@@ -143,23 +143,40 @@ def log_finding(
             return cur.fetchone()[0]
 
 
-def verify_chain() -> tuple[bool, str]:
-    """Verify hash-chain integrity of audit_events."""
+def verify_chain(*, after_id: int = 0) -> tuple[bool, str]:
+    """Verify hash-chain integrity of audit_events.
+
+    after_id: only verify events with id > after_id (anchor row_hash used as prev).
+    Use after_id>0 when the DB has legacy rows from older demo runs.
+    """
     with get_conn() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            prev = ""
+            if after_id > 0:
+                cur.execute(
+                    "SELECT row_hash FROM audit_events WHERE id = %s",
+                    (after_id,),
+                )
+                anchor = cur.fetchone()
+                if not anchor:
+                    return False, f"anchor id={after_id} not found"
+                prev = anchor["row_hash"] or ""
+
             cur.execute(
                 """
                 SELECT id, ts, actor, role, action, resource_type, resource_id,
                        model_name, model_version, status, details,
                        correlation_id, prev_hash, row_hash
-                FROM audit_events ORDER BY id ASC
-                """
+                FROM audit_events
+                WHERE id > %s
+                ORDER BY id ASC
+                """,
+                (after_id,),
             )
             rows = cur.fetchall()
     if not rows:
-        return True, "empty chain (OK)"
+        return True, "empty chain (OK)" if after_id == 0 else f"no events after id={after_id} (OK)"
 
-    prev = ""
     for row in rows:
         payload = {
             "actor": row["actor"],
