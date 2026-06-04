@@ -39,12 +39,16 @@ def test_g12_blocks_ds() -> None:
         "model_card": '{"name":"m","version":"1","tier":"HIGH","owner":"t","purpose":"ok","data_sources":"d"}',
         "security.scan_status": "passed",
         "security.G0": "passed",
+        "security.G1": "passed",
         "security.G3": "passed",
+        "security.G3b": "passed",
         "security.G5": "passed",
         "security.G6": "passed",
         "security.G7": "passed",
         "security.G8": "passed",
         "security.G9": "passed",
+        "security.G11": "passed",
+        "security.signed": "true",
         "security.approved_by": "mlsecops1",
     }
     ok, msg = check_promote_policy(tags, "credit-scoring-pd", actor_role="ds")

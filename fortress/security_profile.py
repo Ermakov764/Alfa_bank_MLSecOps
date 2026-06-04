@@ -16,7 +16,7 @@ REQUIRED_DEPLOY = ["G11"]
 
 
 def required_gates_for_model(model_name: str) -> list[str]:
-    base = REQUIRED_CI + REQUIRED_REGISTER
+    base = REQUIRED_CI + REQUIRED_REGISTER + REQUIRED_DEPLOY
     if "nlp" in model_name or "support" in model_name:
         return base + REQUIRED_M3_VALIDATE
     return base + REQUIRED_M1_M2_VALIDATE

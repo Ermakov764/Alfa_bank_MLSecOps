@@ -1,0 +1,147 @@
+name: CI Pipeline (MLflow path)
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      model_key:
+        description: m1 | m2 | m3 | all
+        default: m1
+
+env:
+  PYTHON_VERSION: "3.11"
+  RUN_ID: ${{ github.run_id }}
+  CORRELATION_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+
+jobs:
+  gate-data:
+    runs-on: ubuntu-latest
+    container:
+      image: python:3.11-slim
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -r requirements.txt cryptography psycopg2-binary pandas
+      - run: chmod +x scripts/ci/gate_data.sh
+      - run: bash scripts/ci/gate_data.sh
+        env:
+          RUN_ID: ${{ env.RUN_ID }}
+          CORRELATION_ID: ${{ env.CORRELATION_ID }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gate-data-report
+          path: artifacts/gates/
+
+  gate-code:
+    needs: gate-data
+    runs-on: ubuntu-latest
+    container:
+      image: python:3.11-slim
+    steps:
+      - uses: actions/checkout@v4
+      - run: apt-get update && apt-get install -y git
+      - run: pip install -r requirements.txt cryptography pip-audit
+      - run: chmod +x gates/*.sh scripts/ci/gate_code.sh
+      - run: bash scripts/ci/gate_code.sh
+        env:
+          RUN_ID: ${{ env.RUN_ID }}
+          CORRELATION_ID: ${{ env.CORRELATION_ID }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gate-code-report
+          path: artifacts/gates/
+
+  train:
+    needs: gate-code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: pip install -r requirements.txt
+      - name: Train models
+        run: |
+          python models/m1_scoring/train.py
+          python models/m2_antifraud/train.py
+          python models/m3_nlp/train.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: train-artifacts
+          path: |
+            models/m1_scoring/artifact/
+            artifacts/models/m2_antifraud/
+            models/m3_nlp/artifact/
+
+  gate-artifacts:
+    needs: train
+    runs-on: ubuntu-latest
+    container:
+      image: python:3.11-slim
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: train-artifacts
+          path: .
+      - run: pip install -r requirements.txt cryptography onnxruntime
+      - run: |
+          MODEL_KEY=m1 bash scripts/ci/gate_artifacts.sh
+          MODEL_KEY=m2 ARTIFACT_DIR=artifacts/models/m2_antifraud bash scripts/ci/gate_artifacts.sh
+        env:
+          RUN_ID: ${{ env.RUN_ID }}
+          CORRELATION_ID: ${{ env.CORRELATION_ID }}
+
+  gate-model:
+    needs: gate-artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: train-artifacts
+          path: .
+      - run: pip install -r requirements.txt -r requirements-gates.txt cryptography httpx onnxruntime
+      - run: python tests/fixtures/malicious/create_evil_pickle.py
+      - run: |
+          MODEL_KEY=m1 bash scripts/ci/gate_model.sh
+          MODEL_KEY=m2 bash scripts/ci/gate_model.sh
+        env:
+          RUN_ID: ${{ env.RUN_ID }}
+          CORRELATION_ID: ${{ env.CORRELATION_ID }}
+      - name: G5 evil must fail
+        run: |
+          chmod +x gates/modelaudit.sh
+          bash gates/modelaudit.sh tests/fixtures/malicious/evil_model.pkl && exit 1 || echo "G5 correctly blocked evil pickle"
+
+  sign-attestation:
+    needs: gate-model
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: train-artifacts
+          path: .
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: pip install -r requirements.txt cryptography
+      - run: |
+          python scripts/ci/sign_attestation.py --run-id "${{ env.RUN_ID }}" --model all --model-key all
+        env:
+          CORRELATION_ID: ${{ env.CORRELATION_ID }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fortress-attestation
+          path: artifacts/attestation/
+
+  unit-tests:
+    needs: sign-attestation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose build fortress
+      - run: docker compose --profile tools run --rm fortress test

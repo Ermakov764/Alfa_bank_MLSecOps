@@ -110,11 +110,13 @@ DEV → CI → DATA → Train → Gates → MLflow Staging → HITL → Producti
 
 ## 7. Остаточный риск (честно)
 
-1. **G9/G8 stubs** — нет полноценного Giskard/ART в CI без GPU/времени.  
-2. **Keycloak** — в dev возможен Plan B (`ACTOR_ROLE`); не production IAM.  
-3. **LLM-Guard** — упрощённые regex-правила, не полный Protect AI pipeline.  
-4. **Insider с доступом к MinIO** — обходит MLflow UI, но hash-chain audit фиксирует действия (не предотвращает).  
-5. **0-day в MLflow** — мониторинг CVE, изоляция сети в реальном банке.
+1. **G8** — holdout на ONNX; полный Giskard — backlog.  
+2. **G9** — input perturbation на ONNX (не полный ART на GPU).  
+3. **Keycloak** — в dev возможен Plan B (`ACTOR_ROLE`); UI без OAuth.  
+4. **Attestation** — Ed25519 dev keys; prod — secrets в CI.  
+5. **LLM-Guard** — regex в LiteLLM proxy, не полный Protect AI pipeline.  
+6. **Insider с доступом к MinIO** — hash-chain audit фиксирует, не предотвращает.  
+7. **0-day в MLflow** — G3/G11 + изоляция сети в реальном банке.
 
 ---
 

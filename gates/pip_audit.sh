@@ -4,13 +4,14 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 STRICT="${GATE_STRICT:-true}"
+REQ="${PIP_AUDIT_REQUIREMENTS:-requirements.txt}"
 
 _run() {
   if command -v pip-audit >/dev/null 2>&1; then
-    pip-audit -r requirements.txt --fail-on high
+    pip-audit -r "$REQ"
     return $?
   fi
-  python3 -m pip_audit -r requirements.txt --fail-on high
+  python3 -m pip_audit -r "$REQ"
 }
 
 if _run; then
@@ -19,7 +20,7 @@ if _run; then
 fi
 
 if [ "$STRICT" = "true" ]; then
-  echo "G3 FAIL: pip-audit found high+ CVEs or pip-audit not installed"
+  echo "G3 FAIL: pip-audit found vulnerabilities or pip-audit not installed"
   exit 1
 fi
 echo "G3 FAIL"

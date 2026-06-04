@@ -12,9 +12,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from fortress.attestation import load_signed, verify_attestation  # noqa: E402
 from fortress.audit import log_event, log_finding  # noqa: E402
 from fortress.mlflow_client import get_version_tags, transition_stage  # noqa: E402
 from fortress.security_profile import check_promote_policy  # noqa: E402
+
+ATTESTATION_PATH = ROOT / "artifacts/attestation/fortress-attestation.signed.json"
 
 
 ROLE_ENV = {
@@ -28,9 +31,24 @@ def actor_role(actor: str) -> str:
     return os.getenv("ACTOR_ROLE", ROLE_ENV.get(actor, "ds"))
 
 
+def _verify_attestation_file() -> tuple[bool, str]:
+    path = Path(os.getenv("FORTRESS_ATTESTATION_PATH", str(ATTESTATION_PATH)))
+    if not path.exists():
+        return False, f"missing attestation: {path}"
+    signed = load_signed(path)
+    return verify_attestation(signed)
+
+
 def promote(model_name: str, version: str, actor: str, approve: bool = False) -> int:
     role = actor_role(actor)
     tags = get_version_tags(model_name, version)
+
+    ok_att, msg_att = _verify_attestation_file()
+    if not ok_att:
+        log_finding("G12", "model", model_name, "attestation_invalid",
+                    severity="high", evidence={"reason": msg_att})
+        print(f"G12 BLOCKED: {msg_att}")
+        return 1
 
     if approve and role == "mlsecops":
         from fortress.mlflow_client import get_client

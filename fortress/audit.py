@@ -10,9 +10,6 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any, Iterator
 
-import psycopg2
-from psycopg2.extras import Json, RealDictCursor
-
 
 def _db_url() -> str:
     return os.getenv(
@@ -21,8 +18,16 @@ def _db_url() -> str:
     )
 
 
+def _pg():
+    import psycopg2
+    from psycopg2.extras import Json, RealDictCursor
+
+    return psycopg2, Json, RealDictCursor
+
+
 @contextmanager
 def get_conn() -> Iterator[Any]:
+    psycopg2, _, _ = _pg()
     conn = psycopg2.connect(_db_url())
     try:
         yield conn
@@ -61,6 +66,8 @@ def log_event(
     correlation_id: str | None = None,
 ) -> int:
     """Append audit event with hash-chain."""
+    if os.getenv("AUDIT_DISABLED", "").lower() in ("1", "true", "yes"):
+        return 0
     details = details or {}
     corr = correlation_id or str(uuid.uuid4())
     payload = {
@@ -75,38 +82,44 @@ def log_event(
         "details": details,
         "correlation_id": corr,
     }
-    with get_conn() as conn:
-        prev_hash = _last_row_hash(conn)
-        row_hash = hashlib.sha256(
-            (prev_hash + _canonical_payload(payload)).encode()
-        ).hexdigest()
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO audit_events (
-                  actor, role, action, resource_type, resource_id,
-                  model_name, model_version, status, details,
-                  correlation_id, prev_hash, row_hash
-                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                RETURNING id
-                """,
-                (
-                    actor,
-                    role,
-                    action,
-                    resource_type,
-                    resource_id,
-                    model_name,
-                    model_version,
-                    status,
-                    Json(details),
-                    corr,
-                    prev_hash,
-                    row_hash,
-                ),
-            )
-            event_id = cur.fetchone()[0]
-    return event_id
+    try:
+        _, Json, _ = _pg()
+        with get_conn() as conn:
+            prev_hash = _last_row_hash(conn)
+            row_hash = hashlib.sha256(
+                (prev_hash + _canonical_payload(payload)).encode()
+            ).hexdigest()
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO audit_events (
+                      actor, role, action, resource_type, resource_id,
+                      model_name, model_version, status, details,
+                      correlation_id, prev_hash, row_hash
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    RETURNING id
+                    """,
+                    (
+                        actor,
+                        role,
+                        action,
+                        resource_type,
+                        resource_id,
+                        model_name,
+                        model_version,
+                        status,
+                        Json(details),
+                        corr,
+                        prev_hash,
+                        row_hash,
+                    ),
+                )
+                event_id = cur.fetchone()[0]
+        return event_id
+    except Exception as exc:
+        import sys
+        print(f"WARN audit log_event skipped: {exc}", file=sys.stderr)
+        return 0
 
 
 def log_finding(
@@ -120,27 +133,34 @@ def log_finding(
     correlation_id: str | None = None,
 ) -> int:
     """Record gate finding for triage."""
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO findings (
-                  gate, asset_type, asset_name, severity, rule,
-                  evidence, correlation_id
-                ) VALUES (%s,%s,%s,%s,%s,%s,%s)
-                RETURNING id
-                """,
-                (
-                    gate,
-                    asset_type,
-                    asset_name,
-                    severity,
-                    rule,
-                    json.dumps(evidence or {}),
-                    correlation_id,
-                ),
-            )
-            return cur.fetchone()[0]
+    if os.getenv("AUDIT_DISABLED", "").lower() in ("1", "true", "yes"):
+        return 0
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO findings (
+                      gate, asset_type, asset_name, severity, rule,
+                      evidence, correlation_id
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s)
+                    RETURNING id
+                    """,
+                    (
+                        gate,
+                        asset_type,
+                        asset_name,
+                        severity,
+                        rule,
+                        json.dumps(evidence or {}),
+                        correlation_id,
+                    ),
+                )
+                return cur.fetchone()[0]
+    except Exception as exc:
+        import sys
+        print(f"WARN audit log_finding skipped: {exc}", file=sys.stderr)
+        return 0
 
 
 def verify_chain(*, after_id: int = 0) -> tuple[bool, str]:
@@ -149,6 +169,7 @@ def verify_chain(*, after_id: int = 0) -> tuple[bool, str]:
     after_id: only verify events with id > after_id (anchor row_hash used as prev).
     Use after_id>0 when the DB has legacy rows from older demo runs.
     """
+    _, _, RealDictCursor = _pg()
     with get_conn() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             prev = ""
@@ -212,6 +233,7 @@ def fetch_events(limit: int = 100, model_name: str | None = None) -> list[dict]:
         params.append(model_name)
     q += " ORDER BY ts DESC LIMIT %s"
     params.append(limit)
+    _, _, RealDictCursor = _pg()
     with get_conn() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(q, params)
@@ -226,6 +248,7 @@ def fetch_findings(limit: int = 50, status: str | None = None) -> list[dict]:
         params.append(status)
     q += " ORDER BY ts DESC LIMIT %s"
     params.append(limit)
+    _, _, RealDictCursor = _pg()
     with get_conn() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(q, params)

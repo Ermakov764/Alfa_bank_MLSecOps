@@ -1,4 +1,4 @@
-name: Security Gates
+name: Security Gates (legacy smoke)
 
 on:
   push:
@@ -7,38 +7,12 @@ on:
     branches: [main, master]
 
 jobs:
-  secrets:
+  redirect-note:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: G0 gitleaks
-        run: |
-          chmod +x gates/gitleaks.sh
-          bash gates/gitleaks.sh || true
+      - run: echo "Full pipeline — see ci-pipeline.yml (sequential gates + train + sign)"
 
-  sast:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: G1 semgrep fallback
-        run: |
-          chmod +x gates/semgrep.sh
-          bash gates/semgrep.sh
-
-  dependencies:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - run: pip install pip-audit
-      - name: G3 pip-audit
-        run: bash gates/pip_audit.sh
-      - name: G3b guarddog fallback
-        run: bash gates/guarddog.sh
-
-  model-scan:
+  g5-evil-pickle:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -50,13 +24,3 @@ jobs:
         run: |
           chmod +x gates/modelaudit.sh
           bash gates/modelaudit.sh tests/fixtures/malicious/evil_model.pkl && exit 1 || echo "G5 correctly failed"
-
-  unit-tests:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - run: pip install pytest pydantic pyyaml
-      - run: pytest tests/test_smoke.py -q

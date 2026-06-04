@@ -1,4 +1,42 @@
+x-fortress-env: &fortress-env
+  PYTHONPATH: /app
+  DATABASE_URL: postgresql://${POSTGRES_USER:-mlsecops}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-mlsecops}
+  MLFLOW_TRACKING_URI: http://mlflow:5000
+  MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+  AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minio}
+  AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-changeme}
+  AWS_DEFAULT_REGION: us-east-1
+  POSTGRES_USER: ${POSTGRES_USER:-mlsecops}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+  POSTGRES_DB: ${POSTGRES_DB:-mlsecops}
+  FORTRESS_ATTESTATION_PATH: /app/artifacts/attestation/fortress-attestation.signed.json
+  API_SCORING_URL: http://api-scoring:8001
+  API_ANTIFRAUD_URL: http://api-antifraud:8002
+  LITELLM_URL: http://litellm:4000
+  KEYCLOAK_URL: http://keycloak:8080
+
 services:
+  fortress:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.fortress
+    image: alfa_bank_mlsecops-fortress:latest
+    profiles: ["tools"]
+    working_dir: /app
+    volumes:
+      - .:/app
+    environment:
+      <<: *fortress-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      mlflow:
+        condition: service_healthy
+    networks:
+      - default
+
   postgres:
     image: postgres:16-alpine
     environment:
@@ -105,6 +143,8 @@ services:
       dockerfile: services/api_scoring/Dockerfile
     ports:
       - "8001:8001"
+    volumes:
+      - ./models/m1_scoring/artifact:/app/models/m1_scoring/artifact:ro
     environment:
       MLFLOW_TRACKING_URI: http://mlflow:5000
       DATABASE_URL: postgresql://${POSTGRES_USER:-mlsecops}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-mlsecops}
@@ -122,6 +162,8 @@ services:
       dockerfile: services/api_antifraud/Dockerfile
     ports:
       - "8002:8002"
+    volumes:
+      - ./artifacts/models/m2_antifraud:/app/artifacts/models/m2_antifraud:ro
     environment:
       MLFLOW_TRACKING_URI: http://mlflow:5000
       DATABASE_URL: postgresql://${POSTGRES_USER:-mlsecops}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-mlsecops}
@@ -139,10 +181,13 @@ services:
       dockerfile: services/litellm/Dockerfile
     ports:
       - "4000:4000"
+    volumes:
+      - ./models/m3_nlp/artifact:/app/models/m3_nlp/artifact:ro
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-mlsecops}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-mlsecops}
       LLM_GUARD_ENABLED: ${LLM_GUARD_ENABLED:-true}
       RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-30}
+      M3_MODEL_PATH: /app/models/m3_nlp/artifact/intent_pipeline.joblib
     depends_on:
       postgres:
         condition: service_healthy
@@ -152,7 +197,7 @@ services:
       context: .
       dockerfile: dashboard/Dockerfile
     ports:
-      - "8501:8501"
+      - "${DASHBOARD_PORT:-8502}:8501"
     environment:
       MLFLOW_TRACKING_URI: http://mlflow:5000
       DATABASE_URL: postgresql://${POSTGRES_USER:-mlsecops}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-mlsecops}

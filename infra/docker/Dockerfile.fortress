@@ -1,0 +1,43 @@
+# FORTRESS tooling: train, gates, pipeline, demo, tests (OS-independent)
+FROM python:3.11-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    git \
+    postgresql-client \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements.txt requirements-gates.txt ./
+RUN pip install --no-cache-dir \
+    -r requirements.txt \
+    -r requirements-gates.txt \
+    pip-audit \
+    httpx
+
+COPY . .
+
+RUN find /app/gates /app/scripts/ci /app/scripts/fortress -name '*.sh' -exec sed -i 's/\r$//' {} + 2>/dev/null || true \
+    && chmod +x /app/gates/*.sh /app/scripts/ci/*.sh /app/scripts/fortress/*.sh 2>/dev/null || true \
+    && chmod +x /app/scripts/fortress/entrypoint.sh
+
+ENV PYTHONPATH=/app \
+    PYTHONUNBUFFERED=1 \
+    PYTHONUTF8=1 \
+    GIT_PYTHON_REFRESH=quiet \
+    ARTIFACTS_DIR=/app/artifacts \
+    DATABASE_URL=postgresql://mlsecops:changeme@postgres:5432/mlsecops \
+    MLFLOW_TRACKING_URI=http://mlflow:5000 \
+    MLFLOW_S3_ENDPOINT_URL=http://minio:9000 \
+    AWS_ACCESS_KEY_ID=minio \
+    AWS_SECRET_ACCESS_KEY=changeme \
+    AWS_DEFAULT_REGION=us-east-1 \
+    FORTRESS_ATTESTATION_PATH=/app/artifacts/attestation/fortress-attestation.signed.json \
+    API_SCORING_URL=http://api-scoring:8001 \
+    API_ANTIFRAUD_URL=http://api-antifraud:8002 \
+    LITELLM_URL=http://litellm:4000
+
+ENTRYPOINT ["/app/scripts/fortress/entrypoint.sh"]
+CMD ["help"]

@@ -37,5 +37,8 @@ httpx>=0.27.0
 
 # See requirements-gates.txt for ART (G9)
 
+# Attestation (Ed25519)
+cryptography>=42.0.0
+
 # Tests
 pytest>=8.2.0

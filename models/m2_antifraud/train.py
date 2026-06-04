@@ -40,6 +40,7 @@ def main() -> None:
     clf.fit(X_train, y_train)
     f1 = f1_score(y_test, clf.predict(X_test))
 
+    ONNX_DIR.mkdir(parents=True, exist_ok=True)
     onnx_path = ONNX_DIR / "model.onnx"
     onnx_model = convert_sklearn(clf, initial_types=[("input", FloatTensorType([None, 4]))])
     with open(onnx_path, "wb") as f:

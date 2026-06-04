@@ -14,7 +14,9 @@ sys.path.insert(0, str(ROOT))
 from fortress.audit import log_event, log_finding  # noqa: E402
 
 ALLOWED_SUFFIXES = {".onnx", ".cbm", ".json", ".safetensors", ".txt", ".yaml", ".yml"}
-FORBIDDEN = {".pkl", ".pickle", ".joblib"}
+FORBIDDEN = {".pkl", ".pickle"}
+# joblib allowed only for M3 NLP classifier artifact path
+JOBLIB_ALLOWED_PREFIXES = ("models/m3_nlp", "m3_nlp")
 
 
 def check(path: Path, actor: str = "system") -> int:
@@ -28,9 +30,11 @@ def check(path: Path, actor: str = "system") -> int:
         if not f.is_file():
             continue
         suf = f.suffix.lower()
-        if suf in FORBIDDEN:
+        if suf in FORBIDDEN or (suf == ".joblib" and not any(
+            p in str(f).replace("\\", "/") for p in JOBLIB_ALLOWED_PREFIXES
+        )):
             log_finding(
-                "G6", "model", f.name, "forbidden_format_pkl",
+                "G6", "model", f.name, "forbidden_format",
                 severity="critical", evidence={"path": str(f)}, correlation_id=corr,
             )
             log_event(

@@ -1,0 +1,24 @@
+#!/usr/bin/env sh
+# OS-independent launcher (requires Docker). Windows: use fortress.ps1 in repo root.
+set -e
+ROOT="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+[ -f .env ] || [ ! -f .env.example ] || cp .env.example .env
+_run() { docker compose --profile tools run --rm --no-TTY fortress "$@"; }
+case "${1:-help}" in
+  up) shift; exec docker compose up -d --build "$@" ;;
+  down) shift; exec docker compose down "$@" ;;
+  ps) shift; exec docker compose ps "$@" ;;
+  logs) shift; exec docker compose logs -f "$@" ;;
+  build) shift; docker compose build fortress "$@"; docker compose build "$@" ;;
+  all)
+    shift
+    docker compose up -d --build postgres minio minio-init mlflow api-scoring api-antifraud litellm dashboard
+    _run bootstrap
+    _run train
+    _run demo
+    echo "Open: MLflow http://localhost:5000 | Dashboard http://localhost:${DASHBOARD_PORT:-8502}"
+    ;;
+  help|-h|--help) exec _run help ;;
+  *) _run "$@" ;;
+esac

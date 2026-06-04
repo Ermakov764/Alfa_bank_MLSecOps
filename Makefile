@@ -1,13 +1,9 @@
-.PHONY: up down bootstrap train-all train-m1 train-m2 security-fast security-strict demo test evil-pickle
+# FORTRESS — all targets run via Docker (see ./fortress or fortress.ps1)
+.PHONY: up down bootstrap train-all ci-pipeline demo test gates all help
 
-PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
-export PYTHONPATH := $(CURDIR)
--include .env
-export
-export MLFLOW_S3_ENDPOINT_URL ?= http://localhost:9000
-export AWS_ACCESS_KEY_ID ?= minio
-export AWS_SECRET_ACCESS_KEY ?= changeme
-export AWS_DEFAULT_REGION ?= us-east-1
+help:
+	@echo "Use: ./bin/fortress <command>   or   .\\fortress.ps1 <command>"
+	@echo "  up bootstrap train pipeline demo test gates all down"
 
 up:
 	docker compose up -d --build
@@ -16,46 +12,37 @@ down:
 	docker compose down
 
 bootstrap:
-	chmod +x scripts/*.sh gates/*.sh
-	PYTHON=$(PYTHON) bash scripts/bootstrap.sh
+	docker compose --profile tools run --rm fortress bootstrap
 
-evil-pickle:
-	$(PYTHON) tests/fixtures/malicious/create_evil_pickle.py
+train-all train:
+	docker compose --profile tools run --rm fortress train
 
-train-m1: evil-pickle
-	$(PYTHON) models/m1_scoring/train.py
-
-train-m2:
-	$(PYTHON) models/m2_antifraud/train.py
-
-train-m3:
-	$(PYTHON) models/m3_nlp/train.py
-
-train-all: train-m1 train-m2 train-m3
-
-install-gates:
-	$(PYTHON) -m pip install -r requirements.txt -r requirements-gates.txt
-
-security-fast:
-	PROFILE=fast PYTHON=$(PYTHON) bash scripts/run_gates.sh
-
-security-strict:
-	$(MAKE) train-all
-	PROFILE=strict MODEL=m1 PYTHON=$(PYTHON) bash scripts/run_gates.sh
-	docker compose up -d litellm
-	sleep 3
-	PROFILE=strict MODEL=m3 PYTHON=$(PYTHON) bash scripts/run_gates.sh
+ci-pipeline:
+	docker compose --profile tools run --rm fortress pipeline
 
 demo:
-	chmod +x scripts/demo.sh
-	PYTHON=$(PYTHON) bash scripts/demo.sh
+	docker compose --profile tools run --rm fortress demo
 
 test:
-	$(PYTHON) -m pytest tests/ -q
+	docker compose --profile tools run --rm fortress test
+
+gates:
+	docker compose --profile tools run --rm -e PROFILE=$(or $(PROFILE),fast) -e MODEL=$(or $(MODEL),m1) fortress gates
+
+all:
+	docker compose up -d --build postgres minio minio-init mlflow api-scoring api-antifraud litellm dashboard
+	docker compose --profile tools run --rm fortress bootstrap
+	docker compose --profile tools run --rm fortress train
+	docker compose --profile tools run --rm fortress demo
+
+evil-pickle:
+	docker compose --profile tools run --rm fortress shell -c "python tests/fixtures/malicious/create_evil_pickle.py"
+
+deploy-precheck:
+	docker compose --profile tools run --rm fortress deploy-precheck
 
 promote:
 	@test -n "$(MODEL)" || (echo "MODEL=credit-scoring-pd VERSION=1 make promote"; exit 1)
-	ACTOR_ROLE=mlsecops $(PYTHON) scripts/promote_to_production.py \
-		--model $(MODEL) --version $(VERSION) --actor mlsecops1 --approve
-	ACTOR_ROLE=mlsecops $(PYTHON) scripts/promote_to_production.py \
-		--model $(MODEL) --version $(VERSION) --actor mlsecops1
+	docker compose --profile tools run --rm -e ACTOR_ROLE=mlsecops fortress shell -c \
+		"python scripts/promote_to_production.py --model $(MODEL) --version $(VERSION) --actor mlsecops1 --approve && \
+		 python scripts/promote_to_production.py --model $(MODEL) --version $(VERSION) --actor mlsecops1"

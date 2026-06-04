@@ -1,0 +1,11 @@
+FROM python:3.11-slim
+WORKDIR /app
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt cryptography psycopg2-binary pandas
+COPY fortress/ fortress/
+COPY scripts/data_gate.py scripts/data_gate.py
+COPY scripts/ci/report_gate.py scripts/ci/report_gate.py
+COPY scripts/ci/gate_data.sh scripts/ci/gate_data.sh
+COPY data/datasets/train_clean.csv data/datasets/train_clean.csv
+ENV PYTHONPATH=/app
+ENTRYPOINT ["bash", "scripts/ci/gate_data.sh"]

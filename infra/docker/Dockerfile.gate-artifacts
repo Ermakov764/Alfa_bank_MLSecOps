@@ -1,0 +1,12 @@
+FROM python:3.11-slim
+WORKDIR /app
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt cryptography onnxruntime
+COPY fortress/ fortress/
+COPY scripts/check_format_policy.py scripts/check_format_policy.py
+COPY scripts/gates/g7_sign_manifest.py scripts/gates/g7_sign_manifest.py
+COPY scripts/ci/ scripts/ci/
+COPY models/ models/
+COPY artifacts/models/ artifacts/models/
+ENV PYTHONPATH=/app
+ENTRYPOINT ["bash", "scripts/ci/gate_artifacts.sh"]
