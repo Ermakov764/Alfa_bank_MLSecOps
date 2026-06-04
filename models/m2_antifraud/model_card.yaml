@@ -1,0 +1,10 @@
+name: transaction-antifraud
+version: "1.0.0"
+tier: HIGH
+owner: team-fraud-ml
+purpose: Real-time transaction fraud scoring
+data_sources: scoring_train:v1
+metrics:
+  f1: 0.78
+limitations: Calibrated for domestic retail transactions only
+pii_handling: Transaction IDs hashed; no PAN in logs
