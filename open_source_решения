@@ -1,0 +1,791 @@
+-где есть похожие проекты которые закрывают все пункты полностью?
+-1. Комплексные Платформы (Ближе всего к ТЗ)
+
+Решение по стеку: Kubeflow / KServe / K8s-only MLOps — НЕ используем.
+Причины: тяжёлый подъём, не укладывается в «один docker compose на ноуте» и быстрый демо-сценарий из ТЗ.
+Вместо этого: MLflow (+ auth), FastAPI/BentoML serving, CI gates.
+
+>>> BACKLOG (фаза 2, когда MVP FORTRESS готов): SecAI ai-model-registry
+>>> https://github.com/SecAI-Hub/ai-model-registry
+>>> Не в MVP. Добавить поверх MLflow: acquired → quarantined → trusted → revoked;
+>>> policy-gated promote после ModelAudit/sign; runtime только trusted.
+>>> Триггер: работают compose, 3 модели, gates, audit, demo.sh, Streamlit dashboard.
+
+MLflow + Расширения
+Что закрывает: Реестр моделей, версионирование, базовый lifecycle
+Чего не хватает: RBAC (в open-source версии), Security Gates, сканирование моделей, audit log
+Как докрутить:
+Добавить прокси-слой для RBAC (например, Keycloak + OAuth2 proxy)
+Интегрировать modelaudit в CI/CD перед регистрацией в MLflow
+Добавить webhook'и для audit log
+https://github.com/mlflow/mlflow/issues?spm=a2ty_o01.29997173.0.0.447655fbNPP1p4&q=security
+https://github.com/search?spm=a2ty_o01.29997173.0.0.447655fbNPP1p4&q=mlflow+rbac
+
+2. Security-Focused Проекты
+https://github.com/neuraltrust/modelaudit?spm=a2ty_o01.29997173.0.0.447655fbNPP1p4
+https://github.com/huggingface/safetensors?spm=a2ty_o01.29997173.0.0.447655fbNPP1p4
+https://github.com/zasdfgbnm/torchsnooper?spm=a2ty_o01.29997173.0.0.447655fbNPP1p4
+modelaudit — сканирование pickle файлов на executable code
+safetensors — безопасная альтернатива pickle (используется как best practice)
+torchsnooper — отладка, но может помочь в анализе
+
+Adversarial Defense
+Adversarial Robustness Toolbox (ART) — тестирование моделей на устойчивость
+CleverHans — библиотека adversarial attacks для тестирования
+TextAttack — для NLP моделей
+https://github.com/Trusted-AI/adversarial-robustness-toolbox?spm=a2ty_o01.29997173.0.0.447655fbNPP1p4
+https://github.com/cleverhans-lab/cleverhans?spm=a2ty_o01.29997173.0.0.447655fbNPP1p4
+https://github.com/QData/TextAttack?spm=a2ty_o01.29997173.0.0.447655fbNPP1p4
+Supply Chain Security для ML
+Sigstore — подпись артефактов (моделей, контейнеров)
+in-toto — framework для supply chain integrity
+SLSA — фреймворк для provenance
+https://www.sigstore.dev/?spm=a2ty_o01.29997173.0.0.447655fbNPP1p4
+https://in-toto.io/?spm=a2ty_o01.29997173.0.0.447655fbNPP1p4
+https://slsa.dev/?spm=a2ty_o01.29997173.0.0.447655fbNPP1p4
+Примеры интеграций:
+sigstore-model-signing — обсуждения
+ml-supply-chain-security — подборка проектов
+https://github.com/sigstore/community/discussions/234?spm=a2ty_o01.29997173.0.0.447655fbNPP1p4
+https://github.com/topics/ml-security?spm=a2ty_o01.29997173.0.0.447655fbNPP1p4
+3. Готовые Демо и PoC
+Microsoft MLOps Secure Template
+Закрыто: CI/CD с security practices, RBAC через Azure AD, monitoring
+Не закрыто: специфические ML угрозы (adversarial, poisoning)
+Можно адаптировать под локальный docker-compose
+https://github.com/Azure/mlops-v2?spm=a2ty_o01.29997173.0.0.447655fbNPP1p4
+Google Cloud MLOps Blueprint
+Аналогично Microsoft, но для GCP
+Хорошие практики для audit logging
+https://github.com/GoogleCloudPlatform/mlops-on-gcp?spm=a2ty_o01.29997173.0.0.447655fbNPP1p4
+Open Source Сборки
+MLOps Platform by Iterative.ai (DVC + CML)
+https://github.com/iterative/example-get-started?spm=a2ty_o01.29997173.0.0.447655fbNPP1p4
+Закрыто: версионирование данных и моделей, CI/CD интеграция
+Не закрыто: security gates, RBAC, runtime защита
+Легко расширяется
+
+Polyaxon
+Полноценная платформа с RBAC, audit log, UI
+Есть open-source версия
+Можно добавить custom steps для security scanning
+https://github.com/polyaxon/polyaxon?spm=a2ty_o01.29997173.0.0.447655fbNPP1p4
+
+ZenML
+Оркестрация пайплайнов
+Интеграции с различными tools
+Можно встроить security steps как custom steps
+https://github.com/zenml-io/zenml?spm=a2ty_o01.29997173.0.0.447655fbNPP1p4
+
+4. Коммерческие Платформы (Для Вдохновения)
+HiddenLayer (упомянута куратором)
+https://docs.hiddenlayer.com/?spm=a2ty_o01.29997173.0.0.447655fbNPP1p4
+Показывает, как должен выглядеть полноценный MLSecOps dashboard
+Можно использовать их reports как референс для UI
+Robust Intelligence
+Фокус на testing и validation моделей
+https://www.robustintelligence.com/resources?spm=a2ty_o01.29997173.0.0.447655fbNPP1p4
+
+Credo AI
+Фокус на governance и compliance
+Open source components
+https://github.com/credo-ai?spm=a2ty_o01.29997173.0.0.447655fbNPP1p4
+
+Arthur AI
+Monitoring и explainability
+Documentation
+https://docs.arthur.ai/?spm=a2ty_o01.29997173.0.0.447655fbNPP1p4
+
+5. Конкретные Репозитории для Изучения
+Полные Примеры Систем
+https://github.com/EthicalML/mlops-production?spm=a2ty_o01.29997173.0.0.447655fbNPP1p4
+mlops-template от EthicalML
+Хорошие практики security
+Docker-based
+Но нет полного MLSecOps coverage
+
+secure-mlops
+Подборка проектов по тегу
+Различные уровни зрелости
+https://github.com/topics/secure-mlops?spm=a2ty_o01.29997173.0.0.447655fbNPP1p4
+
+ml-security-benchmark
+От Trail of Bits
+Фокус на threat modeling и benchmarking
+https://github.com/trailofbits/ml-security?spm=a2ty_o01.29997173.0.0.447655fbNPP1p4
+
+awesome-mlops-security
+Curated list ресурсов
+https://github.com/topics/mlops-security?spm=a2ty_o01.29997173.0.0.447655fbNPP1p4
+
+Demo Projects с Security Focus
+mlflow-with-auth
+Добавляет basic auth к MLflow
+Можно расширить до полноценного RBAC
+https://github.com/Germandrummer92/mlflow-with-auth?spm=a2ty_o01.29997173.0.0.447655fbNPP1p4
+
+mlflow-signature
+Примеры подписи моделей в MLflow
+https://github.com/search?spm=a2ty_o01.29997173.0.0.447655fbNPP1p4&q=mlflow+signature
+
+Коммерческие платформы (для вдохновения архитектурой)
+Эти продукты — то, к чему вы должны стремиться. Изучите их документацию, чтобы понять, как выглядит "правильная" MLSecOps-платформа.
+1. Protect AI (бывший ModelScan)
+GitHub: https://github.com/protectai/modelscan
+Что закрывает: Supply chain security, сканирование моделей на pickle-бомбы, backdoors, malicious code
+Формат: CLI + Python library + Scanner
+Ключевая фича: Сканирует .pkl, .h5, .pt, .onnx, SavedModel на вредоносный код
+Применение в кейсе: Security Gate в CI/CD перед загрузкой модели в реестр
+2. HiddenLayer Model Scanner (из кейса)
+GitHub: https://github.com/hiddenlayerai/model-scan
+Что закрывает: Supply chain security, AI BOM (Bill of Materials)
+Ключевая фича: Генерирует верифицируемый AI BOM в формате CycloneDX
+Применение в кейсе: Паспорт безопасности модели
+3. Lakera Guard
+Сайт: https://www.lakera.ai/
+Что закрывает: Runtime protection для LLM (prompt injection, jailbreak, PII leakage)
+Применение в кейсе: Runtime security layer для 3-й модели (агентской системы)
+4. Robust Intelligence (приобретена Cisco)
+Что закрывает: Полный цикл — testing, validation, runtime protection
+Ключевая фича: Continuous testing на adversarial attacks
+Применение в кейсе: Эталон архитектуры
+Open-Source проекты, закрывающие отдельные слои
+Слой 1: Model Registry + RBAC
+ZenML — https://github.com/zenml-io/zenml
+Оркестрация пайплайнов; интеграция с MLflow, Airflow. Опционально, не база кейса.
+Поддержка RBAC через внешние системы. Закрывает ~50% реестра без отдельного MLSecOps UI.
+SecAI ai-model-registry — https://github.com/SecAI-Hub/ai-model-registry
+Security-first registry (quarantine → trusted). Альтернатива MLflow для trust model.
+Слой 2: Security Gates в CI/CD
+ModelScan (Protect AI) — https://github.com/protectai/modelscan
+Сканирование моделей на уязвимости
+GitHub Action для интеграции в CI
+Закрывает: Supply chain security gate
+Bandit + Safety + pip-audit
+Классические Python security tools
+Интегрируются в любой CI
+Закрывает: SAST и SCA для ML-кода
+Trivy — https://github.com/aquasecurity/trivy
+Сканирование Docker-образов на CVE
+GitHub Action готов
+Закрывает: Container security gate
+Sigstore / Cosign — https://github.com/sigstore/cosign
+Подпись артефактов и контейнеров
+Keyless signing через OIDC
+Закрывает: Integrity verification
+Слой 3: Runtime Protection
+Adversarial Robustness Toolbox (ART) — https://github.com/Trusted-AI/adversarial-robustness-toolbox
+От IBM Research
+Тестирование на evasion, poisoning, extraction attacks
+Defenses: adversarial training, differential privacy
+Закрывает: Adversarial testing + базовая runtime защита
+NeMo Guardrails (NVIDIA) — https://github.com/NVIDIA/NeMo-Guardrails
+Runtime protection для LLM и агентских систем
+Colang DSL для описания правил
+Закрывает: Runtime security для LLM-части
+Fallible / Guardrails AI — https://github.com/ShreyaR/guardrails
+Валидация входных/выходных данных LLM
+Закрывает: Output validation
+Слой 4: Audit & Observability
+OpenMetadata — https://github.com/open-metadata/OpenMetadata
+Data governance + lineage
+Audit log из коробки
+RBAC встроен
+Закрывает: Audit + lineage + RBAC
+Marquez (OpenLineage) — https://github.com/MarquezProject/marquez
+Data lineage tracking
+Интеграция с Airflow, dbt, Spark
+Закрывает: Lineage для данных и моделей
+Слой 5: Threat Modeling
+MITRE ATLAS — https://atlas.mitre.org/
+Таксономия атак на ML-системы
+Готовые матрицы угроз
+Закрывает: Модель угроз (основа для вашего паспорта безопасности)
+OWASP ML Top 10 — https://owasp.org/www-project-machine-learning-security-top-10/
+Топ-10 уязвимостей ML-систем
+Закрывает: Чек-лист для модели угроз
+Референс-архитектуры (как собрать всё вместе)
+Вариант 1: На базе MLflow (с доработкой)
+1
+MLflow — Model Registry
+OAuth2 Proxy — аутентификация перед MLflow
+OPA (Open Policy Agent) — RBAC через политики
+ModelScan — Security Gate для моделей
+Trivy — Security Gate для образов
+Sigstore — подпись артефактов
+PostgreSQL + Hasura — Audit log + GraphQL API
+React dashboard — UI
+Вариант 2: ZenML + MLflow (опционально, если нужна оркестрация)
+1
+ZenML — оркестрация пайплайнов (custom security steps)
+MLflow — эксперименты и модели
+Docker Compose — training/serving (без Kubernetes)
+ModelScan — supply chain security
+ART — adversarial testing
+Postgres audit — вместо тяжёлого OpenMetadata для MVP
+Вариант 3: Своя система (максимальный контроль)
+1
+FastAPI — REST API для реестра
+PostgreSQL — метаданные + audit log
+MinIO — хранилище артефактов (S3-compatible)
+Keycloak — RBAC и аутентификация
+ModelScan — сканер моделей
+Trivy — сканер образов
+Celery — асинхронные задачи (сканирование, обучение)
+React + Grafana — UI
+Готовые GitHub-репозитории для вдохновения
+1. OWASP Machine Learning Security Top 10
+https://github.com/OWASP/www-project-machine-learning-security-top-10
+Примеры атак и защит
+Использование: для модели угроз
+2. MITRE ATLAS Case Studies
+https://github.com/mitre-atlas/atlas
+Реальные кейсы атак
+Использование: для обоснования митигаций
+3. Adversarial Robustness Toolbox Examples
+https://github.com/Trusted-AI/adversarial-robustness-toolbox/tree/main/examples
+Готовые примеры атак и защит
+Использование: для демо-сценариев
+4. ModelScan Examples
+https://github.com/protectai/modelscan/tree/main/examples
+Примеры интеграции в CI/CD
+Использование: для Security Gates
+5. MLflow Security Plugins
+https://github.com/mlflow/mlflow/tree/master/mlflow/server/auth
+Базовая аутентификация
+Использование: как основа для RBAC
+Что Нашел
+1. EthicalML/fml-security — Практические Примеры MLSecOps
+GitHub: https://github.com/EthicalML/fml-security
+Это самый ценный ресурс для вашего кейса. Проект от Institute for Ethical AI демонстрирует:
+Что реализовано:
+✅ Атака через pickle injection — демонстрация RCE через вредоносную модель
+✅ Security Gates в CI/CD:
+bandit — SAST для Python кода
+safety — сканирование зависимостей на CVE
+piprot — проверка устаревших зависимостей
+trivy — сканирование Docker образов
+OWASP Dependency-Check — комплексный анализ зависимостей
+✅ Adversarial Detection — интеграция с Alibi Detect
+✅ Poetry для dependency locking — воспроизводимость окружения
+✅ Примеры безопасного и небезопасного деплоя моделей
+Как использовать:
+bash
+12345678
+Ключевая ценность: Готовые примеры того, как внедрять security gates в ML pipeline.
+2. EthicalML/sml-security — Cookiecutter Template для Безопасных ML Проектов
+GitHub: https://github.com/EthicalML/sml-security
+Это шаблон проекта с уже встроенными security practices:
+Что реализовано:
+✅ Security scans для контейнеров (trivy)
+✅ Security scans для модулей (python safety)
+✅ Security scans для зависимостей (piprot)
+✅ Poetry для deterministic dependency management
+✅ Containerization utilities
+✅ Unit tests для ML моделей
+Как использовать:
+bash
+1234567
+Ключевая ценность: Готовый шаблон, который можно использовать как основу для вашего Model Registry.
+3. Unica MLSec Course — Академический Курс с Лабораторными
+GitHub: https://github.com/unica-mlsec/mlsec
+Это учебный курс по Machine Learning Security от Университета Кальяри:
+Что реализовано:
+✅ Threat modeling — методология оценки угроз
+✅ Evasion Attacks — примеры атак и защит
+✅ Poisoning Attacks — атаки на обучающие данные
+✅ Privacy Attacks — атаки на конфиденциальность
+✅ Certified Defenses — сертифицированные защиты
+✅ Explainable AI/ML — объяснимость моделей
+✅ AI Agents Security — безопасность агентских систем
+Как использовать:
+bash
+12345
+Ключевая ценность: Академическая база для модели угроз и понимания атак.
+4. ThalesGroup/secure-ml — Фреймворк Политик Безопасности
+GitHub: https://github.com/ThalesGroup/secure-ml
+Это фреймворк от Thales (крупная компания в области безопасности):
+Что реализовано:
+✅ Security Policy Framework — политики безопасности для ML систем
+✅ 40+ Open-Source Security Tools — кураторский список инструментов
+✅ ML Threats — таксономия угроз
+✅ Privacy-Preserving Techniques — Differential Privacy, Federated Learning, Homomorphic Encryption
+✅ Agentic AI Security — безопасность агентских систем
+Как использовать:
+bash
+123
+Ключевая ценность: Enterprise-level подход к безопасности ML систем.
+5. OpenSSF MLSecOps Whitepaper — Практическое Руководство
+PDF: https://openssf.org/wp-content/uploads/2025/08/OpenSSF_MLSecOps_Whitepaper.pdf
+Это практическое руководство от OpenSSF (Open Source Security Foundation):
+Что реализовано:
+✅ Integrated Security Controls — карта security controls по этапам ЖЦ
+✅ OpenSSF Tools Integration:
+Sigstore — криптографическая подпись моделей
+OpenSSF Scorecard — оценка безопасности проектов
+Allstar — enforcement security policies
+SLSA — provenance и integrity levels
+GUAC — lineage tracking
+✅ OWASP Tools Integration:
+Threat Dragon — threat modeling
+CycloneDX — SBOM для ML
+Dependency-Check — сканирование зависимостей
+Dependency-Track — мониторинг рисков
+Как использовать:
+Изучить Figure 8 — Integrated MLSecOps Framework
+Изучить Table 3 — маппинг инструментов на этапы ЖЦ
+Использовать как reference architecture
+Ключевая ценность: Reference architecture от industry consortium.
+Чего Не Нашел
+Полностью готовой MLSecOps-платформы с:
+❌ Model Registry + RBAC + Audit Log в одном docker-compose
+❌ UI для управления моделями и ролями
+❌ Интеграции всех security gates в единый pipeline
+❌ Готовых демо-сценариев для всех пунктов кейса
+Почему:
+MLSecOps — это новая область, стандарты еще формируются
+Каждая организация собирает свою платформу из компонентов
+Коммерческие решения (HiddenLayer, Protect AI, Robust Intelligence) закрытые и дорогие
+Что Делать
+Вариант 1: Собрать из Найденных Компонентов (Рекомендую)
+Архитектура:
+1234567
+Шаги:
+Клонировать EthicalML/fml-security — изучить примеры атак и защит
+Использовать EthicalML/sml-security как шаблон для ML проектов
+Интегрировать security gates из примеров в CI/CD
+Добавить MLflow + Keycloak для RBAC
+Реализовать audit log через PostgreSQL
+Написать threat model на основе ThalesGroup/secure-ml
+Создать UI для демонстрации
+Вариант 2: Взять Коммерческое Решение для Демонстрации
+Если нужно быстро показать работающую систему:
+Databricks Managed MLflow — имеет встроенный RBAC
+Azure Machine Learning — имеет RBAC и audit logging
+AWS SageMaker — имеет RBAC и integration с AWS security tools
+Но это не open-source и не подходит для кейса.
+Вариант 3: Написать Свою Платформу с Нуля
+Если есть время и желание:
+1
+Но это займет 2-3 недели плотной работы.
+Рекомендация
+Используйте Вариант 1 — соберите из найденных компонентов. Это:
+✅ Показывает системное мышление
+✅ Демонстрирует понимание MLSecOps practices
+✅ Использует проверенные open-source инструменты
+✅ Закрывает 80% требований кейса
+✅ Оставляет время на доработку и демонстрацию
+Вот лучшие варианты, ранжированные по полезности для вашего кейса.
+🏆 1. Giskard (Самый близкий к "готовой платформе")
+GitHub: https://github.com/Giskard-AI/giskard
+Сайт: https://www.giskard.ai/
+Это open-source фреймворк для тестирования ML-моделей, который идеально ложится на требования кейса.
+Что закрывает из ТЗ:
+✅ Security Gates: Автоматическое сканирование моделей на уязвимости (evasion attacks, data leakage, bias, hallucination для LLM).
+✅ UI из коробки: У Giskard есть отличный веб-интерфейс (Giskard Hub), где видны все найденные уязвимости, метрики и отчеты. Это решает задачу "полноценная видимость в вебе".
+✅ CI/CD интеграция: Есть готовый Python-клиент и GitHub Action для блокировки пайплайна, если модель не прошла тесты.
+✅ Поддержка разных моделей: Работает и с табличными данными (scikit-learn, XGBoost), и с NLP (HuggingFace), и с Computer Vision.
+Как использовать: Развернуть Giskard Hub через Docker, написать скрипт на Python, который загружает вашу модель, запускает giskard.scan(), и сохраняет отчет. Это будет вашим "Security Gate".
+🛡️ 2. Garak (От NVIDIA / LEAP)
+GitHub: https://github.com/leondz/garak
+Если одна из ваших 3-х моделей — это LLM или агентская система (что дает доп. баллы по ТЗ), Garak — это must-have.
+Что закрывает из ТЗ:
+✅ Runtime / Pre-deployment защита: Это инструмент для "красной команды" (red teaming). Он автоматически пытается взломать вашу LLM (jailbreak, prompt injection, leakage).
+✅ Отчетность: Генерирует красивые HTML/JSON отчеты, которые можно показать куратору как "историю событий и аудит".
+✅ Простота запуска: Работает из командной строки, легко встраивается в bash-скрипт или CI/CD.
+Как использовать: Добавить шаг в CI/CD: garak --model_type huggingface --model_name your-model --probes all. Если garak находит уязвимость, он возвращает код ошибки, ломая пайплайн (Security Gate).
+🔍 3. ModelScan (от Protect AI)
+GitHub: https://github.com/protectai/modelscan
+Это именно тот инструмент, который закрывает supply chain риски: отравление моделей конкурентами и pickle-бомбы при загрузке артефактов.
+Что закрывает из ТЗ:
+✅ Supply Chain Security: Сканирует файлы .pkl, .pt, .h5, .onnx, .bin на наличие вредоносного кода, который выполнится при загрузке модели.
+✅ CI/CD Gate: Имеет готовый GitHub Action.
+Как использовать: Это обязательный шаг в вашем пайплайне перед тем, как модель попадет в реестр.
+🔐 4. MLflow с готовыми плагинами аутентификации
+Поскольку куратор прямо сказал: "В MLflow миллионы уязвимостей и нет RBAC", использовать "голый" MLflow нельзя. Но есть готовые обертки:
+Репозиторий: https://github.com/FlaminSarge/mlflow-server-auth (или аналоги, например, mlflow-with-auth).
+Что делает: Добавляет базовую аутентификацию и разграничение прав (через токены или интеграцию с LDAP/OAuth) поверх MLflow Tracking Server.
+Альтернатива: Использовать OAuth2 Proxy перед MLflow. Это стандартный паттерн: Nginx -> OAuth2 Proxy (проверяет логин/пароль и роль) -> MLflow. Это легко собирается в docker-compose.
+
+1. Domino Data Lab (Enterprise Standard)
+Это эталон того, как выглядит MLSecOps в крупном энтерпрайзе.
+Что закрывает: Полный жизненный цикл, встроенный RBAC, Audit Log, изолированные вычислительные среды (Environments), Model Registry с профилями безопасности.
+Почему это важно для кейса: У них есть Domino Security & Governance модуль. Он автоматически отслеживает lineage (происхождение) данных и моделей, сканирует зависимости на CVE и управляет доступом.
+Как использовать: Изучить их документацию по "Model Governance" и "Security". Это даст понимание, какие именно поля должны быть в вашем реестре моделей и как должен выглядеть отчет для CEO.
+2. Seldon Core + Seldon Deploy
+Решение от компании, которая специализируется именно на деплое и мониторинге ML.
+Что закрывает: Продвинутый деплой, Canary releases, A/B тестирование, и самое главное — Seldon Alibi Detect (детекция аномалий и дрейфа данных в Runtime).
+Безопасность: Интеграция с Istio/Kubernetes для тонкой настройки сетевых политик и mTLS.
+UI: Предоставляет дашборды для мониторинга производительности и инцидентов.
+Аналог для MVP: Можно использовать open-source версию Seldon Core для оркестрации инференса и добавить к ней кастомный middleware для логирования запросов (Audit).
+3. Polyaxon (Open Source Core)
+Полноценная OSS-платформа с UI, проще тяжёлого K8s-MLOps.
+Что закрывает: Оркестрация, Experiment Tracking, Model Registry, и встроенная система пользователей и проектов (RBAC).
+Безопасность: Поддержка интеграции с внешними провайдерами аутентификации (GitHub, GitLab, LDAP).
+UI: Очень мощный веб-интерфейс из коробки, где видны все запуски, артефакты и логи.
+Как использовать: Развернуть Polyaxon CE (Community Edition). Он закроет 80% требований по UI и управлению. Останется только дописать скрипты для ModelScan и Garak как "Custom Operations" внутри пайплайнов Polyaxon.
+4. ClearML (от Allegro AI)
+Платформа с открытым исходным кодом, которая позиционируется как "MLOps для каждого".
+Что закрывает: Автоматический логгинг всего (код, данные, веса), удаленное выполнение задач, Model Registry.
+Безопасность: Есть встроенная система пользователей и групп. В Enterprise версии есть продвинутый аудит, но в Open Source можно реализовать базовый контроль через API.
+Фишка: Очень легко интегрируется с любым кодом. Можно написать скрипт, который перед регистрацией модели в ClearML вызывает ModelScan, и если тот возвращает ошибку — скрипт не отправляет артефакт.
+5. BentoML + BentoCloud (Local Stack)
+BentoML фокусируется на упаковке моделей в сервисы.
+Что закрывает: Стандартизацию упаковки моделей (Bento), версионирование, деплой.
+Безопасность: BentoML позволяет легко добавлять middleware для аутентификации и валидации входных данных (Input/Output validation).
+Интеграция: Легко собирается в Docker. Можно создать свой "Bento Builder", который внутри себя запускает security-скрипты.
+
+================================================================================
+6. ДОПОЛНИТЕЛЬНЫЙ ПОИСК — «ВОЛШЕБНЫЕ» И ПОЧТИ-ГОТОВЫЕ РЕПОЗИТОРИИ
+(добавлено после второго раунда ресерча)
+================================================================================
+
+Легенда оценки «близости к ТЗ кейса» (0–100%):
+  ★★★★☆ 70–85% — можно форкнуть/развернуть и допилить gates + audit за дни
+  ★★★☆☆ 50–69% — сильный кирпич (registry ИЛИ security ИЛИ UI), не платформа
+  ★★☆☆☆ 30–49% — инструмент / курс / список, не система
+  ★☆☆☆☆ <30% — только вдохновение или коммерция
+
+Важно: по-прежнему НЕТ одного OSS-репо с: registry + RBAC + audit + 3 модели +
+security gates + retire + demo.sh + docker compose. Ниже — максимально близкие.
+
+--------------------------------------------------------------------------------
+6.1. Самые близкие к «готовой платформе» (форк / compose)
+--------------------------------------------------------------------------------
+
+### SecAI-Hub/ai-model-registry — ★★★★☆ ~75%
+https://github.com/SecAI-Hub/ai-model-registry
+Что это: лёгкий HTTP-сервис — security-first registry артефактов (LLM, adapters, tokenizers).
+Жизненный цикл: acquired → quarantined → trusted → revoked → deleted (только trusted в runtime).
+Закрывает из ТЗ: policy-gated promotion (= security gate), SHA-256 verify, fail-closed auth,
+  явный retire/revoke, audit переходов состояний.
+Не закрывает: UI «для CEO», обучение, 3 разных ML-сценария из коробки, adversarial runtime.
+Как использовать: взять как ЯДРО реестра вместо голого MLflow; поверх — FastAPI serving + CI
+  с ModelScan перед promote.
+Риск: молодой проект, узкий фокус (чаще LLM-артефакты, не tabular PD).
+
+### demml/opsml — ★★★★☆ ~72%
+https://github.com/demml/opsml
+Документация: https://docs.demml.io/opsml
+Что это: AI lifecycle platform (Rust server + Python SDK + SvelteKit UI). «Cards» для моделей,
+  агентов, промптов — versioning, lineage, encryption at rest, auth, monitoring (beta).
+Закрывает из ТЗ: registry, UI, governance narrative, agent registry (бонус по ТЗ).
+Не закрывает: ML-specific security gates (pickle scan) из коробки — нужно встраивать ModelScan.
+Как использовать: если нужен «веб из коробки» + единая метафора артефакта; security — custom step.
+Риск: тяжелее compose, меньше примеров под банковский кейс, чем MLflow.
+
+### kitops-ml/kitops (CNCF) — ★★★☆☆ ~65%
+https://github.com/kitops-ml/kitops
+https://kitops.org/docs/security/
+Что это: упаковка ML/AI в OCI-артефакты (ModelKit) в обычный container registry + Cosign + digests.
+Закрывает из ТЗ: supply chain, подпись, tamper-evident, gate «только подписанное в prod».
+Не закрывает: RBAC пользователей, audit UI, adversarial testing, tabular models narrative.
+Как использовать: слой доставки моделей (как Docker для ML); registry = Harbor/Docker Registry.
+Применение: подписанный артефакт в корпоративном registry (Harbor/Artifactory) перед promote в prod.
+
+### Polyaxon CE — ★★★★☆ ~70% (повтор с уточнением)
+https://github.com/polyaxon/polyaxon
+Уточнение: CE даёт UI + projects/users, но enterprise RBAC/audit — ограничены.
+Для кейса: custom operation = `modelaudit scan` + блокировка job.
+
+### ClearML — ★★★☆☆ ~68%
+https://github.com/allegroai/clearml
+Hooks перед register_model() + web UI experiments. OSS audit слабее enterprise.
+
+### squirke1/llm-mlops-platform — ★★★☆☆ ~50%
+https://github.com/squirke1/llm-mlops-platform
+docker-compose.yml + MLflow + FastAPI + Prometheus/Grafana + CI security scanning.
+Полезно как СКЕЛЕТ compose (не MLSecOps): скопировать структуру, заменить LLM на 3 модели кейса.
+
+--------------------------------------------------------------------------------
+6.2. Security-first registry / governance (не полная платформа)
+--------------------------------------------------------------------------------
+
+### OWASP/SecureML — ★★★☆☆ ~45%
+https://github.com/OWASP/SecureML
+https://owasp.org/www-project-secureml/
+Подпись и watermark моделей поверх OpenSSF Model Signing. Есть docs/threat_model.md.
+Для кейса: gate «модель подписана» + раздел в МУ; не registry.
+
+### sigstore/model-transparency (OpenSSF Model Signing) — ★★★☆☆ ~40%
+https://github.com/sigstore/model-transparency
+pip: model-signing — CLI sign/verify, Sigstore, SLSA provenance helpers.
+Для кейса: обязательный шаг CI перед promote; доказательство integrity в audit log.
+
+### OpenMetadata — ★★★☆☆ ~50%
+https://github.com/open-metadata/OpenMetadata
+Governance + lineage + RBAC + audit (data/platform). Тяжёлый compose для хакатона.
+
+### lakeFS — ★★☆☆☆ ~35% (данные, не модели)
+https://github.com/treeverse/lakeFS
+Git for data + hooks pre-merge + RBAC. Для МУ (data poisoning, lineage), не model registry.
+
+### Harbor (CNCF) — ★★★☆☆ ~45%
+https://github.com/goharbor/harbor
+OCI registry + RBAC + CVE scan + cosign.notary. Хранить ModelKit/образы inference; не ML metadata.
+
+--------------------------------------------------------------------------------
+6.3. Сканеры supply chain (альтернативы ModelScan — выбрать 1–2)
+--------------------------------------------------------------------------------
+
+| Инструмент | GitHub | Зачем | Заметка |
+|------------|--------|-------|---------|
+| ModelAudit | https://github.com/promptfoo/modelaudit | Шире форматов, SARIF, CI | Fork Model-Fortress; активнее ModelScan |
+| ModelScan | https://github.com/protectai/modelscan | Классика, GH Action | Уже в документе |
+| Ceres | https://github.com/duriantaco/ceres | AI-SAST: repo + models + RAG + MCP | Не импортирует модели (безопасно) |
+| MLSec-Analyzer | https://github.com/frustratedresearcher/MLSec-Analyzer | Статика pickle/GGUF/Keras | Можно генерить тестовые malicious samples для демо |
+| ModelGuard | https://github.com/RiadMoudjahed/ModelGuard | Pickle/GGUF + опционально Ollama AI-анализ | Экспериментальный |
+| Palisade Scan | https://github.com/highflame-ai/palisade-scan | Rust core, Sigstore/SLSA, ML-BOM | Enterprise-ориентация |
+| Fickling | https://github.com/trailofbits/fickling | Pickle bytecode + runtime hook allowlist | Runtime защита при load, дополняет scan |
+| picklescan | https://github.com/mmaitre314/picklescan | Лёгкий pickle scanner | Проще ModelScan, меньше форматов |
+| Hugging Face gguf-guard | (через SecAI registry) | GGUF manifest verify | Если модель GGUF |
+
+Рекомендация для кейса: ModelAudit (gate) + Fickling (runtime на inference) ИЛИ только ModelAudit.
+
+--------------------------------------------------------------------------------
+6.4. Adversarial / LLM red team (runtime и validation gates)
+--------------------------------------------------------------------------------
+
+| Инструмент | GitHub | Закрывает |
+|------------|--------|-----------|
+| Giskard | https://github.com/Giskard-AI/giskard | Tabular/NLP tests, UI Hub, CI gate |
+| Garak | https://github.com/leondz/garak | LLM red team, HTML отчёты |
+| Promptfoo | https://github.com/promptfoo/promptfoo | LLM eval + scan-model + web /model-audit |
+| NeMo Guardrails | https://github.com/NVIDIA/NeMo-Guardrails | Runtime rules для LLM/агентов |
+| ART | https://github.com/Trusted-AI/adversarial-robustness-toolbox | Evasion/poisoning/extraction тесты |
+| ml-security-tools (mlsec) | https://github.com/scthornton/ml-security-tools | 6 CLI: adversarial, inspect, poison, triton… |
+| CleverHans / TextAttack | (см. раздел 2) | Академические атаки |
+
+Для 3 моделей кейса: tabular → Giskard или ART; LLM → Garak или Promptfoo; supply chain → ModelAudit.
+
+--------------------------------------------------------------------------------
+6.5. Готовые «учебные» и эталонные репо (не платформа, но золото для демо)
+--------------------------------------------------------------------------------
+
+### EthicalML/fml-security — ★★★☆☆ (уже есть, усилить)
+Демо pickle RCE + CI gates — показать на защите «до/после gate».
+
+### EthicalML/awesome-production-machine-learning — ★★☆☆☆
+https://github.com/EthicalML/awesome-production-machine-learning
+Раздел Privacy & Safety — сотни ссылок для МУ.
+
+### visenger/awesome-mlops + ml-ops.org — ★★☆☆☆
+https://github.com/visenger/awesome-mlops
+
+### ThalesGroup/secure-ml — ★★☆☆☆ (уже есть)
+40+ tools mapping.
+
+### trailofbits/ml-security — ★★☆☆☆
+https://github.com/trailofbits/ml-security
+Threat modeling + benchmarking от Trail of Bits.
+
+### OpenSSF MLSecOps Whitepaper — ★★☆☆☆
+https://openssf.org/wp-content/uploads/2025/08/OpenSSF_MLSecOps_Whitepaper.pdf
+Reference architecture для таблицы «этап ЖЦ → контроль».
+
+### OWASP ML Top 10 + MITRE ATLAS case studies — ★★☆☆☆
+https://github.com/OWASP/www-project-machine-learning-security-top-10
+https://github.com/mitre-atlas/atlas
+
+### Unica mlsec / pralab/mlsec — ★★☆☆☆
+Курсы, не deployable platform.
+
+--------------------------------------------------------------------------------
+6.6. Коммерческие «магия только в облаке» (не для сдачи, но UI-референс)
+--------------------------------------------------------------------------------
+
+- HiddenLayer model-scan (OSS): https://github.com/hiddenlayerai/model-scan — CycloneDX AI BOM
+- Jozu Hub (KitOps commercial): policy + 5-layer scan + audit
+- Domino / Databricks Unity Catalog — поля governance в вашем registry schema
+
+--------------------------------------------------------------------------------
+6.7. Матрица: что взять как «базу» для кейса (рекомендация после 2 раунда)
+--------------------------------------------------------------------------------
+
+Вариант A — «Security registry first» (акцент на trust model и policy-gated promote):
+  ai-model-registry + ModelAudit CI + FastAPI×3 models + Streamlit audit UI + compose
+
+Вариант B — «Классика MLOps» (проще объяснить жюри):
+  MLflow + oauth2-proxy + ModelAudit + Postgres audit + Streamlit
+
+Вариант C — «Максимум веба»:
+  Polyaxon CE или OpsML + custom security steps
+
+Вариант D — «Форк скелета»:
+  squirke1/llm-mlops-platform compose → вырезать K8s, вставить gates из fml-security
+
+НЕ брать как единственную базу: OpenMetadata, lakeFS (перегруз по времени). Kubeflow — исключён.
+
+--------------------------------------------------------------------------------
+6.8. Новые ссылки одной строкой (для grep)
+--------------------------------------------------------------------------------
+https://github.com/SecAI-Hub/ai-model-registry
+https://github.com/demml/opsml
+https://github.com/kitops-ml/kitops
+https://github.com/OWASP/SecureML
+https://github.com/sigstore/model-transparency
+https://github.com/promptfoo/modelaudit
+https://github.com/promptfoo/promptfoo
+https://github.com/duriantaco/ceres
+https://github.com/frustratedresearcher/MLSec-Analyzer
+https://github.com/RiadMoudjahed/ModelGuard
+https://github.com/highflame-ai/palisade-scan
+https://github.com/trailofbits/fickling
+https://github.com/scthornton/ml-security-tools
+https://github.com/squirke1/llm-mlops-platform
+https://github.com/hiddenlayerai/model-scan
+https://github.com/goharbor/harbor
+https://github.com/treeverse/lakeFS
+https://github.com/trailofbits/ml-security
+https://github.com/mmaitre314/picklescan
+
+================================================================================
+7. «КРУТОЙ КЕЙС» — МНОГО ГЕЙТОВ И АНАЛИЗАТОРОВ (MAX MLSecOps)
+================================================================================
+
+Цель: впечатлить жюри **многослойной обороной**: каждый этап ЖЦ → gate → отчёт
+в едином Security Dashboard. В МУ: defense in depth + приоритизация triage.
+
+⚠️ 15+ сканеров = долгий CI и FP. Профили: `strict` (демо) / `fast` (dev).
+
+--------------------------------------------------------------------------------
+7.1. Концепция «MLSecOps Shield» — 4 конвейера, 16 gates
+--------------------------------------------------------------------------------
+
+[DS commit] → G0–G3 (код, секреты, deps, typosquat)
+           → G4–G7 (модель: AI-SAST, ModelAudit, format, sign)
+           → G8–G10 (validation: Giskard, ART, Garak/Crucible)
+           → G11–G12 (образ + promote в registry)
+           → G13–G15 (runtime: LLM-Guard, rate limit, drift)
+           → AUDIT + Dashboard
+
+Три модели:
+  M1 PD (sklearn) — Giskard + ART + ModelAudit
+  M2 Antifraud (CatBoost) — + Alibi Detect на API
+  M3 LLM — Garak + LLM-Guard + LiteLLM proxy
+
+Демо-атаки: pickle bomb (fail G5), pytirch в requirements (G3b), jailbreak (G10).
+
+--------------------------------------------------------------------------------
+7.2. Таблица gates
+--------------------------------------------------------------------------------
+
+| # | Gate | Инструмент | Этап | Блокирует если |
+|---|------|------------|------|----------------|
+| G0 | Secrets | gitleaks | commit | секрет в репо |
+| G1 | ML-SAST | Semgrep trailofbits | PR | pickle load/save |
+| G2 | Python SAST | bandit | PR | high severity |
+| G3 | SCA | pip-audit + safety | PR | critical CVE |
+| G3b | Typosquat | guarddog | PR | имя как pytirch |
+| G4 | AI-SAST repo | Ceres | PR | AI supply chain риски |
+| G4b | Mega scan (опц.) | MEDUSA | nightly | MCP/RAG/agent риски |
+| G5 | Model scan | ModelAudit | pre-register | CRITICAL в артефакте |
+| G5b | Pickle deep | Fickling | pre-register | malicious bytecode |
+| G6 | Format policy | custom check | pre-register | .pkl в prod path |
+| G7 | Sign | model-signing + cosign | pre-register | нет подписи |
+| G8 | ML quality | Giskard | validation | leakage/bias |
+| G9 | Adversarial | ART | validation | evasion ниже порога |
+| G10 | LLM red team | Garak / Crucible | validation | injection найден |
+| G11 | Image | Trivy | build | critical CVE |
+| G12 | Registry | ai-model-registry | deploy | не trusted |
+| G13 | Runtime LLM | LLM-Guard | inference | prompt injection |
+| G14 | API abuse | rate limit + anomaly | inference | probing pattern |
+| G15 | Drift | Alibi Detect (опц.) | monitor | drift alert |
+
+--------------------------------------------------------------------------------
+7.3. Новые инструменты (раздел 7)
+--------------------------------------------------------------------------------
+
+MEDUSA — https://github.com/Pantheon-Security/medusa
+  AI-SAST 9600+ rules (MCP, RAG, agents). Gate G4b, не на каждый commit.
+
+Crucible — https://github.com/crucible-security/crucible
+  Red team LLM/agents, HTML reports. Альтернатива Garak для M3.
+
+devsec — https://github.com/victoralfred/devsec
+  Go-оркестратор gitleaks+semgrep+trivy+OPA. Идея для своего Makefile.
+
+LLM-Guard — https://github.com/protectai/llm-guard
+  Runtime: PromptInjection, PII, Toxicity. Gate G13.
+
+GuardDog — https://github.com/DataDog/guarddog
+  Typosquatting pip (например, опечатки в имени torch/tensorflow). Gate G3b.
+
+Semgrep ToB ML rules — https://github.com/trailofbits/semgrep-rules
+  pickles-in-pytorch/keras/joblib. Gate G1.
+
+LiteLLM — https://github.com/BerriAI/litellm
+  Gateway + guardrails + keys + compose.
+
+Aegis — https://github.com/Justin0504/Aegis
+  Agent gateway + audit dashboard + compose.
+
+Trylon Gateway — https://github.com/trylonai/gateway
+  LLM firewall, policies.yaml, compose.
+
+AgentGuard — https://github.com/MANIGAAA27/agentguard
+  FastAPI guardrails + Postgres audit.
+
+Alibi Detect — https://github.com/SeldonIO/alibi-detect
+  Drift/outlier runtime. Gate G15.
+
+OPA — https://www.openpolicyagent.org/
+  Rego: promote только если signed && scan=ok.
+
+Dependency-Track — https://github.com/DependencyTrack/dependency-track
+  Агрегация SARIF (опционально).
+
+Syft/Grype — https://github.com/anchore/syft
+
+--------------------------------------------------------------------------------
+7.4. Три профиля сборки
+--------------------------------------------------------------------------------
+
+FORTRESS (рекомендуется для «крутого» кейса):
+  MLflow + Keycloak + Postgres audit + Streamlit Security Center
+  make security-all (G0–G7) + отдельно validation (G8–G10) + runtime (G13–G14)
+  ~10–12 контейнеров compose
+
+CERBERUS (меньше инфра, сильный registry narrative):
+  ai-model-registry + Ceres + ModelAudit + Garak + Streamlit
+
+RED TEAM SHOW (мало DevOps, много атак):
+  MLflow lite + fml-security pickle demo + ART + Garak + Crucible reports
+
+--------------------------------------------------------------------------------
+7.5. Security Dashboard (обязательно при MAX)
+--------------------------------------------------------------------------------
+
+Колонки: Model | Version | G0..G15 ✅/❌ | Risk | Role | Last audit event
+Кнопки: Import HF | Train | Deploy | Retire | CEO report (мок)
+Артефакты: *.sarif, giskard.html, garak.html в artifacts/
+
+--------------------------------------------------------------------------------
+7.6. План по дням (реалистично)
+--------------------------------------------------------------------------------
+
+Д1: compose + G0 G3 G5 + 1 модель
+Д2: G1 G7 G12 + audit DB
+Д3: M2 M3 + G8 G10 G13
+Д4: Dashboard + demo (bad model, bad prompt)
+Д5: МУ + G9 G15 по возможности
+
+Не тащить сразу: MEDUSA + OpenMetadata.
+
+--------------------------------------------------------------------------------
+7.7. Ссылки раздел 7
+--------------------------------------------------------------------------------
+https://github.com/Pantheon-Security/medusa
+https://github.com/crucible-security/crucible
+https://github.com/victoralfred/devsec
+https://github.com/protectai/llm-guard
+https://github.com/DataDog/guarddog
+https://github.com/BerriAI/litellm
+https://github.com/Justin0504/Aegis
+https://github.com/trylonai/gateway
+https://github.com/MANIGAAA27/agentguard
+https://github.com/SeldonIO/alibi-detect
+https://github.com/anchore/syft
+https://github.com/anchore/grype
+https://www.openpolicyagent.org/
+https://github.com/DependencyTrack/dependency-track
