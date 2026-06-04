@@ -1,0 +1,32 @@
+.env
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ML / artifacts
+artifacts/
+mlruns/
+*.pkl
+!tests/fixtures/malicious/*.pkl
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker volumes (if mapped locally)
+data/postgres/
+data/minio/
+
+# Secrets & reports with sensitive paths
+*.pem
+*.key
+.gitleaks.toml.bak

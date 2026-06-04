@@ -1,0 +1,40 @@
+{
+  "realm": "mlsecops",
+  "enabled": true,
+  "roles": {
+    "realm": [
+      {"name": "ds"},
+      {"name": "mlsecops"},
+      {"name": "de"},
+      {"name": "product"},
+      {"name": "ceo"}
+    ]
+  },
+  "users": [
+    {
+      "username": "ds1",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{"type": "password", "value": "ds1pass", "temporary": false}],
+      "realmRoles": ["ds"]
+    },
+    {
+      "username": "mlsecops1",
+      "enabled": true,
+      "credentials": [{"type": "password", "value": "mlsecops1pass", "temporary": false}],
+      "realmRoles": ["mlsecops"]
+    },
+    {
+      "username": "de1",
+      "enabled": true,
+      "credentials": [{"type": "password", "value": "de1pass", "temporary": false}],
+      "realmRoles": ["de"]
+    },
+    {
+      "username": "ceo",
+      "enabled": true,
+      "credentials": [{"type": "password", "value": "ceopass", "temporary": false}],
+      "realmRoles": ["ceo"]
+    }
+  ]
+}
