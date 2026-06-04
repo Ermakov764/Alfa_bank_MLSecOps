@@ -43,7 +43,7 @@ demo:
 	PYTHON=$(PYTHON) bash scripts/demo.sh
 
 test:
-	pytest tests/ -q
+	$(PYTHON) -m pytest tests/ -q
 
 promote:
 	@test -n "$(MODEL)" || (echo "MODEL=credit-scoring-pd VERSION=1 make promote"; exit 1)
