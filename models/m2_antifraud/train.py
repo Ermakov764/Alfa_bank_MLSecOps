@@ -20,7 +20,6 @@ ROOT = Path(__file__).resolve().parents[2]
 DATA = ROOT / "data/datasets/train_clean.csv"
 ART = ROOT / "artifacts" / "models" / "m2_antifraud"
 ONNX_DIR = ART / "onnx"
-ONNX_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def main() -> None:
@@ -28,11 +27,13 @@ def main() -> None:
     mlflow.set_experiment("m2-antifraud")
 
     df = pd.read_csv(DATA)
+    # Bootstrap to stable train set (demo CSV is small)
+    df = df.sample(n=200, replace=True, random_state=42).reset_index(drop=True)
     rng = np.random.default_rng(42)
     df["velocity"] = rng.uniform(0, 1, len(df))
     df["merchant_risk"] = rng.uniform(0, 1, len(df))
     X = df[["amount", "age", "velocity", "merchant_risk"]].values.astype(np.float32)
-    y = (df["target"] ^ (df["amount"] > 3000).astype(int)).values
+    y = df["target"].values
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=7)
     clf = RandomForestClassifier(n_estimators=50, max_depth=5, random_state=7)

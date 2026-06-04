@@ -77,6 +77,21 @@ GitHub Actions: `.github/workflows/security.yml` — gitleaks, semgrep, pip-audi
 git remote add origin git@github.com:Ermakov764/Alfa_bank_MLSecOps.git  # if needed
 ```
 
+## Gates (no stubs in strict profile)
+
+| Gate | Implementation |
+|------|----------------|
+| G8 | `scripts/gates/g8_validate.py` — ONNX holdout accuracy |
+| G9 | `scripts/gates/g9_art.py` — ART FGSM if installed, else numpy adversarial probe |
+| G10 | `scripts/gates/g10_llm_probe.py` — live jailbreak probes to M3 API |
+| G11 | `gates/g11_trivy.sh` — Trivy via CLI or Docker |
+| G7 | `scripts/gates/g7_sign_manifest.py` — SHA256 manifest |
+
+```bash
+make install-gates   # ART + deps
+make security-strict
+```
+
 ## Phase 2 (deferred)
 
-SecAI registry, full Giskard/ART/Garak, G15 drift, OAuth2 Proxy in front of MLflow.
+SecAI registry, full Giskard scan, G15 drift, OAuth2 Proxy in front of MLflow.

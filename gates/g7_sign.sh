@@ -1,16 +1,11 @@
 #!/usr/bin/env bash
-# G7 — model signing (digest sidecar)
+# G7 — SHA256 manifest signing (Sigstore if SIGNING_STRICT=true)
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TARGET="${1:-}"
-if [ -z "$TARGET" ] || [ ! -f "$TARGET" ]; then
-  echo "G7 SKIP: no artifact"
-  exit 0
+PYTHON="${PYTHON:-python3}"
+if [ -z "$TARGET" ]; then
+  echo "G7 FAIL: no artifact path"
+  exit 1
 fi
-
-if command -v model-signing >/dev/null 2>&1 && [ "${SIGNING_STRICT:-false}" = "true" ]; then
-  model-signing sign "$TARGET" && { echo "G7 PASS"; exit 0; }
-fi
-
-sha256sum "$TARGET" | awk '{print $1}' > "${TARGET}.sig"
-echo "G7 PASS (sha256 sidecar ${TARGET}.sig)"
+exec "$PYTHON" "$ROOT/scripts/gates/g7_sign_manifest.py" "$TARGET"

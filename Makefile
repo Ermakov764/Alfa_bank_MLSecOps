@@ -28,15 +28,23 @@ train-m1: evil-pickle
 train-m2:
 	$(PYTHON) models/m2_antifraud/train.py
 
-train-all: train-m1 train-m2
+train-m3:
+	$(PYTHON) models/m3_nlp/train.py
+
+train-all: train-m1 train-m2 train-m3
+
+install-gates:
+	$(PYTHON) -m pip install -r requirements.txt -r requirements-gates.txt
 
 security-fast:
 	PROFILE=fast PYTHON=$(PYTHON) bash scripts/run_gates.sh
 
 security-strict:
+	$(MAKE) train-all
 	PROFILE=strict MODEL=m1 PYTHON=$(PYTHON) bash scripts/run_gates.sh
-	G5_EXPECT_PASS=1 G5_TARGET=models/m1_scoring/artifact/onnx/model.onnx \
-		gates/modelaudit.sh models/m1_scoring/artifact/onnx/model.onnx
+	docker compose up -d litellm
+	sleep 3
+	PROFILE=strict MODEL=m3 PYTHON=$(PYTHON) bash scripts/run_gates.sh
 
 demo:
 	chmod +x scripts/demo.sh

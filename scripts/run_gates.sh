@@ -75,14 +75,23 @@ if [ "$PROFILE" = "fast" ] || [ "$PROFILE" = "strict" ]; then
 fi
 
 if [ "$PROFILE" = "strict" ]; then
-  run_gate "G6" "$PYTHON scripts/check_format_policy.py models/m1_scoring/artifact || true"
+  run_gate "G6" "$PYTHON scripts/check_format_policy.py models/m1_scoring/artifact"
+  run_gate "G6" "$PYTHON scripts/check_format_policy.py artifacts/models/m2_antifraud"
   ART="${G7_ARTIFACT:-models/m1_scoring/artifact/onnx/model.onnx}"
-  [ -f "$ART" ] && run_gate "G7" "gates/g7_sign.sh '$ART'" || run_gate "G7" "gates/g7_sign.sh"
+  for art in \
+    models/m1_scoring/artifact/onnx/model.onnx \
+    artifacts/models/m2_antifraud/onnx/model.onnx; do
+    if [ -f "$art" ]; then
+      run_gate "G7" "gates/g7_sign.sh '$art'"
+    fi
+  done
   if [ "$MODEL" = "m3" ]; then
     run_gate "G10" "gates/g10_garak.sh"
   else
-    run_gate "G8" "gates/g8_giskard.sh $MODEL"
-    run_gate "G9" "gates/g9_art.sh $MODEL"
+    run_gate "G8" "gates/g8_giskard.sh m1"
+    run_gate "G9" "gates/g9_art.sh m1"
+    run_gate "G8" "gates/g8_giskard.sh m2"
+    run_gate "G9" "gates/g9_art.sh m2"
   fi
   run_gate "G11" "gates/g11_trivy.sh"
 fi

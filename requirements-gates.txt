@@ -1,0 +1,2 @@
+# Optional: full ART FGSM (pip may conflict on Python 3.12 — G9 has numpy fallback)
+# adversarial-robustness-toolbox>=1.18.0

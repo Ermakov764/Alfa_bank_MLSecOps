@@ -1,14 +1,26 @@
 #!/usr/bin/env bash
-# G3 — dependency CVE audit
+# G3 — dependency CVE audit (required in strict mode)
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+STRICT="${GATE_STRICT:-true}"
 
-if command -v pip-audit >/dev/null 2>&1; then
-  pip-audit -r requirements.txt --fail-on high 2>/dev/null && { echo "G3 PASS"; exit 0; } || exit 1
+_run() {
+  if command -v pip-audit >/dev/null 2>&1; then
+    pip-audit -r requirements.txt --fail-on high
+    return $?
+  fi
+  python3 -m pip_audit -r requirements.txt --fail-on high
+}
+
+if _run; then
+  echo "G3 PASS"
+  exit 0
 fi
 
-python3 -m pip_audit -r requirements.txt --fail-on high 2>/dev/null && { echo "G3 PASS"; exit 0; } || {
-  echo "G3 SKIP (pip-audit unavailable — dev mode)"
-  exit 0
-}
+if [ "$STRICT" = "true" ]; then
+  echo "G3 FAIL: pip-audit found high+ CVEs or pip-audit not installed"
+  exit 1
+fi
+echo "G3 FAIL"
+exit 1

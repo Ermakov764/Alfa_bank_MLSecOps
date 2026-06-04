@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# G9 — ART adversarial robustness (minimal stub)
+# G9 — ART FGSM adversarial robustness
 set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 MODEL="${1:-m1}"
-echo "G9 PASS (minimal ART stub robustness=0.75 for $MODEL)"
+PYTHON="${PYTHON:-python3}"
+exec "$PYTHON" "$ROOT/scripts/gates/g9_art.py" "$MODEL"

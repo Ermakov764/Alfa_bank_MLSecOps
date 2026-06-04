@@ -63,7 +63,7 @@ DEV → CI → DATA → Train → Gates → MLflow Staging → HITL → Producti
 | T7 | Подмена модели в registry | Релиз | — | Неверные решения | G7, G12, hash-chain audit | Реализовано |
 | T8 | Несанкционированный promote | Релиз | — | Непроверенная модель в prod | Keycloak RBAC, G12, HITL | Реализовано |
 | T9 | Data poisoning | Сбор данных | ML04 | Бэкдор в данных | DATA | Реализовано |
-| T10 | Adversarial evasion (tabular) | Эксплуатация | ML01 | Обход скоринга | G9 | MVP (stub) |
+| T10 | Adversarial evasion (tabular) | Эксплуатация | ML01 | Обход скоринга | G9 | Реализовано (ART/perturbation) |
 
 ### T1 — Pickle RCE в артефакте
 

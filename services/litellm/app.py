@@ -17,6 +17,23 @@ sys.path.insert(0, str(ROOT))
 
 from fortress.audit import log_event  # noqa: E402
 
+MODEL_PATH = Path(
+    os.getenv(
+        "M3_MODEL_PATH",
+        str(ROOT / "models/m3_nlp/artifact/intent_pipeline.joblib"),
+    )
+)
+_INTENT_PIPE = None
+_INTENT_LABELS: dict[str, str] = {
+    "balance": "Для проверки баланса откройте приложение → «Счета» → текущий остаток.",
+    "card_block": "Чтобы заблокировать карту: приложение → «Карты» → «Заблокировать».",
+    "password": "Сброс пароля: раздел «Безопасность» → «Сменить пароль».",
+    "mortgage": "Ставки по ипотеке — на сайте в разделе «Ипотека» или у менеджера отделения.",
+    "complaint": "Жалобу можно оставить в чате поддержки; номер обращения придёт в SMS.",
+    "transfer": "Перевод: «Платежи» → «По реквизитам» или между своими счетами.",
+    "insurance": "Продукты страхования — каталог в приложении, раздел «Страхование».",
+}
+
 app = FastAPI(title="M3 Support NLP", version="1.0.0")
 RATE_LIMIT = int(os.getenv("RATE_LIMIT_PER_MINUTE", "30"))
 GUARD_ENABLED = os.getenv("LLM_GUARD_ENABLED", "true").lower() == "true"
@@ -61,13 +78,30 @@ def _g13_check(prompt: str) -> tuple[bool, str]:
     return True, ""
 
 
-def _mock_llm(prompt: str) -> str:
+def _load_intent_model():
+    global _INTENT_PIPE
+    if _INTENT_PIPE is not None:
+        return _INTENT_PIPE
+    if MODEL_PATH.exists():
+        import joblib
+        _INTENT_PIPE = joblib.load(MODEL_PATH)
+    return _INTENT_PIPE
+
+
+def _infer(prompt: str) -> str:
+    pipe = _load_intent_model()
+    if pipe is not None:
+        intent = str(pipe.predict([prompt])[0])
+        return _INTENT_LABELS.get(
+            intent,
+            f"Классифицировано как «{intent}». Оператор поможет уточнить детали.",
+        )
     p = prompt.lower()
-    if "balance" in p or "счет" in p:
-        return "Для проверки баланса откройте мобильное приложение → раздел «Счета»."
+    if "balance" in p or "баланс" in p or "счет" in p:
+        return _INTENT_LABELS["balance"]
     if "card" in p or "карт" in p:
-        return "По вопросам карты обратитесь в чат поддержки 24/7."
-    return "Спасибо за обращение. Оператор уточнит детали в течение 5 минут."
+        return _INTENT_LABELS["card_block"]
+    return "Спасибо за обращение. Уточните вопрос — подскажем следующий шаг."
 
 
 @app.get("/health")
@@ -87,7 +121,7 @@ def chat(req: ChatRequest, request: Request) -> ChatResponse:
                   status="blocked", details={"rule": rule, "prompt_len": len(req.prompt)})
         raise HTTPException(403, f"prompt blocked by LLM-Guard (G13): {rule}")
 
-    reply = _mock_llm(req.prompt)
+    reply = _infer(req.prompt)
     log_event("litellm", "api.inference", model_name="support-nlp", status="success",
               details={"prompt_len": len(req.prompt)})
     return ChatResponse(reply=reply, model=req.model, guarded=GUARD_ENABLED)

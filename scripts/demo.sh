@@ -25,6 +25,7 @@ echo "--- Scenario B: clean dataset + train M1/M2 ---"
   --name scoring_train --version v1 --expected-cols amount,age,target
 "$PYTHON" models/m1_scoring/train.py
 "$PYTHON" models/m2_antifraud/train.py
+"$PYTHON" models/m3_nlp/train.py
 
 echo "--- Scenario A: evil model blocked (G5) ---"
 if gates/modelaudit.sh tests/fixtures/malicious/evil_model.pkl; then
@@ -83,11 +84,11 @@ for g in ["G0","G1","G3","G3b","G5","G6","G7","G8","G9","G11"]:
 set_scan_status(card2["name"], v2, True)
 Path("artifacts/m2_version.txt").write_text(v2)
 
-# M3 stub register
+# M3 NLP classifier
 card3 = yaml.safe_load(Path("models/m3_nlp/model_card.yaml").read_text())
+art3 = Path("models/m3_nlp/artifact")
 with mlflow.start_run(run_name="demo-register-m3") as run:
-    mlflow.log_param("type", "nlp-stub")
-    mlflow.log_text("support-nlp stub", "model/README.txt")
+    mlflow.log_artifacts(str(art3), "model")
     mv3 = mlflow.register_model(f"runs:/{run.info.run_id}/model", card3["name"])
     v3 = str(mv3.version)
 client.set_model_version_tag(card3["name"], v3, "model_card", json.dumps(card3))
@@ -114,9 +115,9 @@ ACTOR_ROLE=mlsecops "$PYTHON" scripts/promote_to_production.py --model transacti
 ACTOR_ROLE=mlsecops "$PYTHON" scripts/promote_to_production.py --model support-nlp --version "$V3" --actor mlsecops1 --approve
 ACTOR_ROLE=mlsecops "$PYTHON" scripts/promote_to_production.py --model support-nlp --version "$V3" --actor mlsecops1
 
-echo "--- Rebuild API images with trained ONNX ---"
-docker compose build api-scoring api-antifraud 2>&1 | tail -5
-docker compose up -d api-scoring api-antifraud 2>&1 | tail -5
+echo "--- Rebuild API images with trained artifacts ---"
+docker compose build api-scoring api-antifraud litellm 2>&1 | tail -8
+docker compose up -d api-scoring api-antifraud litellm 2>&1 | tail -5
 echo "--- Scenario C: API predict ---"
 sleep 5
 curl -f -X POST http://localhost:8001/predict -H "Content-Type: application/json" \

@@ -1,0 +1,30 @@
+text,intent
+как проверить баланс,balance
+где посмотреть баланс счета,balance
+check my account balance,balance
+заблокировать карту,card_block
+card lost need block,card_block
+восстановить пароль,password
+reset password online,password
+кредитная ставка по ипотеке,mortgage
+mortgage interest rate,mortgage
+жалоба на обслуживание,complaint
+bad service complaint,complaint
+перевод на другой счет,transfer
+wire transfer help,transfer
+страхование жизни,insurance
+life insurance info,insurance
+покажи остаток на карте,balance
+how to block stolen card,card_block
+forgot my login password,password
+ипотечная ставка сегодня,mortgage
+хочу пожаловаться на банк,complaint
+перевод денег другу,transfer
+оформить страховку авто,insurance
+баланс по счету 40817,balance
+заменить карту,card_block
+не помню пароль от приложения,password
+рефинансирование ипотеки,mortgage
+плохое обслуживание в отделении,complaint
+сбп перевод на телефон,transfer
+страхование ипотеки,insurance
