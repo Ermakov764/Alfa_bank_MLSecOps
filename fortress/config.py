@@ -32,6 +32,10 @@ def m3_api_url() -> str:
     return public_url("M3_API_URL", "http://localhost:4000")
 
 
+def service_health_url(env_key: str, fallback: str) -> str:
+    return os.getenv(env_key, fallback).rstrip("/")
+
+
 def artifacts_dir() -> Path:
     return Path(os.getenv("ARTIFACTS_DIR", str(ROOT / "artifacts")))
 
@@ -41,6 +45,10 @@ def attestation_path() -> Path:
         "FORTRESS_ATTESTATION_PATH",
         str(artifacts_dir() / "attestation" / "fortress-attestation.signed.json"),
     ))
+
+
+def jupyter_public_url() -> str:
+    return public_url("JUPYTER_PUBLIC_URI", "http://localhost:8888")
 
 
 def strict_audit() -> bool:

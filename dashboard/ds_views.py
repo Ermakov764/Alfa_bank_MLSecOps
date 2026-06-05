@@ -7,12 +7,13 @@ from pathlib import Path
 
 import streamlit as st
 
+from fortress.config import jupyter_public_url, mlflow_public_url
+from dashboard.shared_views import render_deploy_panel, render_pipeline_panel
 from fortress.dataset_registry import ingest_dataset
-from fortress.deploy_runner import deploy_to_production, run_precheck
+from fortress.mlflow_datasets import list_quarantined_datasets, register_from_mlflow_run
 from fortress.ds_workspace import (
     check_results_detailed,
     ds_kpis,
-    my_findings,
     my_models_overview,
     signed_datasets,
     signed_models,
@@ -22,7 +23,6 @@ from fortress.mlflow_client import (
     list_models_for_user,
     list_versions,
     save_model_card_tag,
-    version_security_summary,
 )
 from fortress.mlflow_experiments import (
     list_experiments,
@@ -30,7 +30,6 @@ from fortress.mlflow_experiments import (
     passport_from_mlflow,
 )
 from fortress.model_card import ModelCard
-from fortress.pipeline_runner import run_pipeline
 
 
 def render_ds_home(user) -> None:
@@ -41,24 +40,32 @@ def render_ds_home(user) -> None:
     c3.metric("Подписанные датасеты", kpi["signed_datasets"])
     c4.metric("Требуют внимания", kpi["needs_attention"])
 
-    with st.expander("Запустить CI pipeline", expanded=False):
-        st.caption("Обучение + все гейты + подпись + sync в MLflow.")
-        mk = st.selectbox("Модели", ["all", "m1", "m2", "m3"], key="ds_pipeline_mk")
-        if st.button("Запустить pipeline", type="primary", key="ds_run_pipeline"):
-            with st.spinner("Pipeline выполняется…"):
-                ok, log = run_pipeline(model_key=mk, actor=user.username)
-            if ok:
-                st.success("Pipeline завершён успешно")
-            else:
-                st.error("Pipeline завершился с ошибкой")
-            if log:
-                st.code(log[-6000:], language="text")
+    with st.expander("Pipeline и train", expanded=False):
+        render_pipeline_panel(user, key_prefix="ds")
+
+    with st.expander("Зарегистрировать внешнюю модель", expanded=False):
+        _render_external_register(user)
 
     df = my_models_overview(user.username, user.role)
     if df:
         st.dataframe(df, use_container_width=True, hide_index=True)
     else:
-        st.info("Ваших моделей пока нет. Запустите pipeline выше или `fortress.ps1 pipeline`.")
+        st.info("Моделей пока нет. Запустите pipeline выше или зарегистрируйте external-модель.")
+
+
+def _render_external_register(user) -> None:
+    from fortress.external_model import register_external_from_files
+
+    name = st.text_input("Имя модели в MLflow", key="ext_model_name")
+    purpose = st.text_input("Назначение", key="ext_purpose")
+    tier = st.selectbox("Tier", ["HIGH", "MED", "LOW"], key="ext_tier")
+    files = st.file_uploader("Файлы модели (ONNX, joblib, manifest…)", accept_multiple_files=True, key="ext_files")
+    if st.button("Зарегистрировать external", key="ext_reg_btn") and files and name:
+        payload = [(f.name, f.getvalue()) for f in files]
+        ok, msg = register_external_from_files(
+            name, payload, owner=user.username, purpose=purpose, tier=tier,
+        )
+        st.success(msg) if ok else st.error(msg)
 
 
 def render_ds_passport(user) -> None:
@@ -190,28 +197,85 @@ def render_ds_checks(user) -> None:
 
 
 def render_ds_signed(user) -> None:
-    st.subheader("Подписанные модели")
-    sm = signed_models(user.username, user.role)
-    if sm:
-        st.dataframe(sm, use_container_width=True, hide_index=True)
-    else:
-        st.info("Нет подписанных моделей. Успешный pipeline + sync в MLflow.")
+    """Данные: произвольная загрузка в MLflow + опциональный DATA gate для pipeline."""
+    mlflow_url = mlflow_public_url()
+    jupyter_url = jupyter_public_url()
 
-    st.subheader("Подписанные датасеты (DATA gate)")
-    sd = signed_datasets(user.username, user.role)
-    if sd and sd[0].get("_error"):
-        st.error(f"Реестр датасетов недоступен: {sd[0]['_error']}")
-    elif sd:
-        st.dataframe(sd, use_container_width=True, hide_index=True)
-    else:
-        st.info("Нет датасетов со статусом available.")
+    st.markdown(
+        """
+**Вы — обычный DS:** берёте файлы **с любой папки на своём ПК** → загружаете в **MLflow**.
+FORTRESS показывает одобренные датасеты (если прошли DATA gate) и **логирует все блокировки**.
+        """
+    )
 
-    with st.expander("Загрузить датасет (CSV)", expanded=False):
-        up = st.file_uploader("CSV файл", type=["csv"], key="ds_dataset_upload")
+    c1, c2 = st.columns(2)
+    with c1:
+        st.link_button("Jupyter", jupyter_url, use_container_width=True)
+        st.caption("Пароль `fortress` · см. `notebooks/START_HERE.md`")
+    with c2:
+        st.link_button("MLflow", mlflow_url, use_container_width=True)
+        st.caption("Эксперименты, runs, артефакты")
+
+    st.divider()
+
+    tab_ml, tab_gate, tab_runs = st.tabs([
+        "В MLflow (любые файлы)",
+        "Регистрация для pipeline (DATA gate)",
+        "Мои датасеты",
+    ])
+
+    with tab_ml:
+        st.markdown(
+            "Загрузка **без ограничений по колонкам** — для ваших эксперimentов. "
+            "Файлы с диска вашего компьютера → MLflow (MinIO)."
+        )
+        exp = st.text_input("Эксперимент MLflow", "ds-experiments", key="ds_ml_exp")
+        rname = st.text_input("Имя run", "local-upload", key="ds_ml_run")
+        files = st.file_uploader(
+            "Файлы с компьютера (можно несколько)",
+            accept_multiple_files=True,
+            key="ds_ml_files",
+        )
+        st.code(
+            f'python scripts/ds_log_to_mlflow.py --file "C:\\\\Users\\\\YOU\\\\data.csv" '
+            f'--experiment {exp} --run-name {rname} --owner {user.username}',
+            language="powershell",
+        )
+        if st.button("Загрузить в MLflow", type="primary", key="ds_ml_upload") and files:
+            from fortress.ds_mlflow_upload import log_local_files
+
+            tmp_paths: list[Path] = []
+            for f in files:
+                t = Path(tempfile.gettempdir()) / f"fortress_{f.name}"
+                t.write_bytes(f.getvalue())
+                tmp_paths.append(t)
+            try:
+                run_id, uri = log_local_files(
+                    tmp_paths,
+                    experiment=exp,
+                    run_name=rname,
+                    owner=user.username,
+                )
+                st.success(f"Загружено в MLflow · run `{run_id[:12]}…`")
+                st.caption(uri)
+            except Exception as exc:
+                st.error(str(exc))
+
+    with tab_gate:
+        st.markdown(
+            "Только если нужен **CI pipeline FORTRESS**. Проверка: poison-колонки, PII, "
+            "опционально — список колонок."
+        )
+        up = st.file_uploader("CSV", type=["csv"], key="ds_dataset_upload")
         dname = st.text_input("Имя датасета", "my_dataset", key="ds_ds_name")
         dver = st.text_input("Версия", "v1", key="ds_ds_ver")
-        cols = st.text_input("Ожидаемые колонки (через запятую)", "amount,age,target", key="ds_ds_cols")
-        if st.button("Проверить и зарегистрировать", key="ds_ingest_btn") and up:
+        cols = st.text_input(
+            "Колонки (необязательно, через запятую)",
+            "",
+            key="ds_ds_cols",
+            help="Пусто = проверяются только poison / PII / пустые ячейки",
+        )
+        if st.button("Проверить и зарегистрировать", type="primary", key="ds_ingest_btn") and up:
             with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tmp:
                 tmp.write(up.getvalue())
                 tmp_path = Path(tmp.name)
@@ -221,70 +285,88 @@ def render_ds_signed(user) -> None:
                 st.rerun()
             else:
                 st.error(msg)
+                st.info("Причина также в **Findings** и аудите.")
+
+        st.markdown("---")
+        st.caption("Или проверить run, созданный в Jupyter / MLflow:")
+        run_id = st.text_input("MLflow Run ID", key="ds_mlflow_run_id")
+        cols2 = st.text_input("Колонки (необязательно)", "", key="ds_mlflow_cols")
+        if st.button("Проверить run", key="ds_validate_run") and run_id.strip():
+            ok, msg, _ = register_from_mlflow_run(
+                run_id.strip(), user.username, expected_cols=cols2,
+            )
+            st.success(msg) if ok else st.error(msg)
+            if ok:
+                st.rerun()
+
+    with tab_runs:
+        if st.button("Обновить из MLflow", key="ds_sync_mlflow"):
+            from fortress.mlflow_datasets import sync_pending_runs
+
+            for row in sync_pending_runs(user.username):
+                st.caption(f"{row['run_id']}: {row['message']}")
+            st.rerun()
+
+        st.subheader("✅ Одобренные (DATA gate пройден)")
+        sd = signed_datasets(user.username, user.role)
+        if sd and sd[0].get("_error"):
+            st.error(f"MLflow недоступен: {sd[0]['_error']}")
+        elif sd:
+            st.dataframe(sd, use_container_width=True, hide_index=True)
+        else:
+            st.info("Нет зарегистрированных датасетов для pipeline.")
+
+        st.subheader("⛔ Заблокированные попытки")
+        blocked = list_quarantined_datasets(user.username, user.role)
+        if blocked:
+            st.dataframe(
+                [
+                    {
+                        "Датасет": r["name"],
+                        "Версия": r["version"],
+                        "Причина": (r.get("failure_reason") or "—")[:120],
+                        "Run": (r.get("run_id") or "")[:12],
+                    }
+                    for r in blocked
+                ],
+                use_container_width=True,
+                hide_index=True,
+            )
+        else:
+            st.caption("Заблокированных попыток нет.")
+
+        st.subheader("Подписанные модели")
+        sm = signed_models(user.username, user.role)
+        if sm:
+            st.dataframe(sm, use_container_width=True, hide_index=True)
+        else:
+            st.info("Нет подписанных моделей.")
 
 
 def render_ds_deploy(user) -> None:
-    models = list_models_for_user(user.username, role=user.role)
-    if not models:
-        st.info("Нет моделей для deploy.")
-        return
-    sel = st.selectbox("Модель", models, key="ds_deploy_model")
-    vers = list_versions(sel, user.username, role=user.role)
-    if not vers:
-        return
-    vi = st.selectbox(
-        "Версия",
-        range(len(vers)),
-        format_func=lambda i: f"v{vers[i]['version']} · {vers[i]['stage']}",
-    )
-    version = vers[vi]["version"]
-    summary = version_security_summary(sel, version)
-    if summary["last_failure"]:
-        st.error(summary["last_failure"])
-    if summary["missing_gates"]:
-        st.error("Не пройдены: " + ", ".join(summary["missing_gates"]))
-    if summary["needs_mlsecops"]:
-        st.warning("Внешняя модель — нужен MLSecOps.")
-    else:
-        st.success(summary["approval_label"])
-
-    c1, c2 = st.columns(2)
-    with c1:
-        if st.button("Pre-deploy", key="ds_pre"):
-            ok, log = run_precheck(sel, version, actor_role=user.role)
-            st.success(log) if ok else st.error(log)
-    with c2:
-        disabled = summary["needs_mlsecops"]
-        if st.button("Deploy в Production", type="primary", disabled=disabled, key="ds_dep"):
-            ok, msg = deploy_to_production(sel, version, user.username, actor_role=user.role)
-            st.success(msg) if ok else st.error(msg)
+    render_deploy_panel(user, key_prefix="ds_dep")
 
 
 def render_ds_findings(user) -> None:
-    rows = my_findings(user.username, user.role)
-    if not rows:
-        st.info("Findings по вашим моделям отсутствуют.")
-        return
-    for row in rows:
-        with st.expander(f"{row['Гейт']} · {row['Severity']} · {row['Время']}", expanded=False):
-            st.markdown(f"**{row['Объяснение']}**")
-            st.markdown(f"Рекомендация: {row['Рекомендация']}")
-            if row["Фрагмент лога"]:
-                st.code(row["Фрагмент лога"])
+    from dashboard.shared_views import render_findings_panel
+
+    render_findings_panel(user, key_prefix="ds_find")
 
 
 def render_ds_help(user) -> None:
+    mlflow_url = mlflow_public_url()
+    jupyter_url = jupyter_public_url()
     st.markdown(
         f"""
-### Рабочий процесс Data Scientist
+### Data Scientist — всё через кнопки в UI
 
-1. **Регистрация** — один аккаунт Keycloak для FORTRESS и MLflow.
-2. **Датасет** — вкладка «Подписанные» → загрузить CSV (DATA gate + реестр).
-3. **Pipeline** — вкладка «Мои модели» → «Запустить CI pipeline».
-4. **Паспорт** — эксперимент MLflow → run → сохранить `model_card`.
-5. **Проверки** — объяснение на русском + фрагмент лога при ошибке.
-6. **Deploy** — CI-модели с подписью → Pre-deploy → Production.
+1. **Мои модели** — pipeline, train, регистрация external-модели  
+2. **Данные** — загрузка файлов в MLflow, DATA gate  
+3. **Deploy** — Pre-deploy → Production  
+4. **Findings / Проверки** — если что-то заблокировано  
 
-**Логин:** `{user.username}` · **роль:** `{user.role}`
+Поднять Docker: `.\fortress.ps1 up` (единственная команда в терминале).
+
+**Логин:** `{user.username}` · **MLflow:** [{mlflow_url}]({mlflow_url}) · **Jupyter:** [{jupyter_url}]({jupyter_url})
         """
     )

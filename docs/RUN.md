@@ -55,7 +55,8 @@ make up bootstrap demo    # то же через Makefile → docker
 | Сервис | URL |
 |--------|-----|
 | MLflow | http://localhost:5000 |
-| Streamlit | http://localhost:8502 |
+| Streamlit (FORTRESS UI) | http://localhost:8502 |
+| Jupyter | http://localhost:8888 |
 | M1 API | http://localhost:8001/docs |
 | M2 API | http://localhost:8002/docs |
 | M3 | http://localhost:4000/health |
@@ -69,6 +70,5 @@ make up bootstrap demo    # то же через Makefile → docker
 
 Готовые образы: [docs/DOCKERHUB.md](./DOCKERHUB.md) — `rinakt/mlsecops-*` на https://hub.docker.com/u/rinakt
 
-## Устаревшие скрипты
-
-`scripts/up.ps1`, `bootstrap.ps1`, `demo.ps1`, `invoke-docker.ps1` перенаправляют на `fortress.ps1`.
+Pipeline, train, deploy, загрузка данных — через **Streamlit UI** (:8502).  
+В терминале только: `.\fortress.ps1 up` (поднять стек).

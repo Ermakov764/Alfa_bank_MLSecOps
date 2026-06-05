@@ -65,42 +65,22 @@ def signed_models(username: str, role: str = "ds") -> list[dict[str, str]]:
 
 
 def signed_datasets(username: str, role: str = "ds") -> list[dict[str, str]]:
-    """Датасеты, прошедшие DATA gate (status=available)."""
+    """Датасеты из MLflow (fortress-datasets), прошедшие DATA gate."""
     try:
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                if role == "mlsecops":
-                    cur.execute(
-                        """
-                        SELECT name, version, sha256, status, created_by, created_at
-                        FROM registry_datasets
-                        WHERE status = 'available'
-                        ORDER BY created_at DESC
-                        LIMIT 100
-                        """
-                    )
-                else:
-                    cur.execute(
-                        """
-                        SELECT name, version, sha256, status, created_by, created_at
-                        FROM registry_datasets
-                        WHERE status = 'available' AND (created_by = %s OR created_by IS NULL)
-                        ORDER BY created_at DESC
-                        LIMIT 100
-                        """,
-                        (username,),
-                    )
-                cols = [d[0] for d in cur.description]
-                return [
-                    {
-                        "Датасет": r[cols.index("name")],
-                        "Версия": r[cols.index("version")],
-                        "SHA256": (r[cols.index("sha256")] or "")[:16] + "…",
-                        "Кто загрузил": r[cols.index("created_by")] or "—",
-                        "Когда": str(r[cols.index("created_at")])[:19],
-                    }
-                    for r in cur.fetchall()
-                ]
+        from fortress.mlflow_datasets import list_datasets
+
+        rows = list_datasets(username, role=role, status="available")
+        return [
+            {
+                "Датасет": r["name"],
+                "Версия": r["version"],
+                "SHA256": (r["sha256"] or "")[:16] + "…" if r["sha256"] else "—",
+                "Строк": r.get("rows", "—"),
+                "Кто загрузил": r.get("owner", "—"),
+                "MLflow run": (r.get("run_id") or "")[:12] + "…",
+            }
+            for r in rows
+        ]
     except Exception as exc:
         return [{"_error": str(exc)}]
 

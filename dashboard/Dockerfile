@@ -5,8 +5,9 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt
 COPY fortress /app/fortress
 COPY dashboard /app/dashboard
 COPY scripts /app/scripts
-COPY data /app/data
+COPY gates /app/gates
 COPY models /app/models
+COPY data /app/data
 ENV PYTHONPATH=/app
 ENV ARTIFACTS_DIR=/app/artifacts
 EXPOSE 8501

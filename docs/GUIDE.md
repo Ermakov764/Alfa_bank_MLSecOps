@@ -200,7 +200,10 @@ Copy-Item .env.example .env
 2. Логин, email, пароль, **выбор роли** (ds или mlsecops)
 3. **Войти** — тот же логин в **MLflow** http://localhost:5000 (Keycloak SSO)
 
-Первый пользователь создаётся через **Регистрация** в FORTRESS UI (Keycloak Admin API).
+Первый пользователь создаётся через **Регистрация** в FORTRESS UI:
+- логин нормализуется в нижний регистр (`Rina` → `rina`);
+- после регистрации вход выполняется автоматически;
+- регистрация проверяет password grant в Keycloak до сообщения об успехе.
 
 ---
 
@@ -210,7 +213,7 @@ Copy-Item .env.example .env
 |-----------|-----|
 | **Регистрация** | Security Center → Регистрация → Keycloak Admin API |
 | **Вход FORTRESS** | Keycloak password grant (клиент `fortress-ui`) |
-| **Вход MLflow** | oauth2-proxy → Keycloak (клиент `mlflow-oauth`) |
+| **Вход MLflow** | http://localhost:5000 → Keycloak SSO (клиент `mlflow-oauth`, роли `ds` / `mlsecops`) |
 | **Роль** | Пользователь выбирает при регистрации (пилот); в проде — назначает админ |
 
 | Роль | Возможности |
@@ -220,6 +223,15 @@ Copy-Item .env.example .env
 
 Keycloak: http://localhost:8080 · realm `mlsecops`
 
+### MLflow по ролям
+
+| Роль | MLflow UI (http://localhost:5000) | FORTRESS |
+|------|-----------------------------------|----------|
+| **ds** | SSO, эксперименты, runs, артефакты, реестр моделей | «Мои модели» — фильтр по `owner` |
+| **mlsecops** | SSO, полный реестр и эксперименты | Обзор всех моделей, одобрение external |
+
+При `fortress.ps1 up` автоматически создаётся клиент `mlflow-oauth` (сервис `keycloak-bootstrap`).
+
 ---
 
 ## 9. Ошибки — где смотреть
@@ -227,6 +239,7 @@ Keycloak: http://localhost:8080 · realm `mlsecops`
 | Симптом | Где |
 |---------|-----|
 | Pipeline упал | Терминал + вкладка **Проверки** (ds) или **Pipeline** (mlsecops) |
+| MLflow «Client not found» | `.\fortress.ps1 bootstrap` или `docker compose up keycloak-bootstrap` |
 | Уязвимость / poison | Findings + `security.last_failure` в MLflow |
 | Deploy заблокирован | Deploy — красный текст + missing gates |
 | Attestation нет | `fortress.ps1 pipeline` не завершился |

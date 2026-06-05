@@ -22,14 +22,14 @@ from scripts import data_gate  # noqa: E402
 def test_01_data_gate_blocks_poison_column(tmp_path: Path) -> None:
     p = tmp_path / "bad.csv"
     p.write_text("amount,poison_backdoor_flag\n1,1\n", encoding="utf-8")
-    assert data_gate.run_gate(p, ["amount"], actor="t") == 1
+    assert data_gate.run_gate(p, ["amount"], actor="t")[0] == 1
 
 
 def test_02_data_gate_passes_clean(tmp_path: Path) -> None:
     p = ROOT / "data/datasets/train_clean.csv"
     if not p.exists():
         pytest.skip("train_clean.csv missing")
-    assert data_gate.run_gate(p, ["amount", "age", "target"], actor="t") == 0
+    assert data_gate.run_gate(p, ["amount", "age", "target"], actor="t")[0] == 0
 
 
 def test_03_evil_pickle_blocked_by_g5() -> None:

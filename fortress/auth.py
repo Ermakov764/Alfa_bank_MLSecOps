@@ -81,13 +81,57 @@ def _role_from_token(payload: dict[str, Any]) -> str:
 
 
 def authenticate(username: str, password: str) -> SessionUser | None:
+    user, _ = authenticate_with_message(username, password)
+    return user
+
+
+def authenticate_with_message(username: str, password: str) -> tuple[SessionUser | None, str | None]:
     username = username.strip().lower()
     if not username or not password:
-        return None
+        return None, "укажите логин и пароль"
 
-    tok = _keycloak_token(username, password)
+    try:
+        r = requests.post(
+            _token_url(),
+            data={
+                "grant_type": "password",
+                "client_id": KEYCLOAK_CLIENT,
+                "username": username,
+                "password": password,
+            },
+            timeout=10,
+        )
+        if r.status_code != 200:
+            body = r.text.lower()
+            if "not fully set up" in body:
+                from fortress.keycloak_admin import repair_incomplete_account
+
+                if repair_incomplete_account(username, password):
+                    r = requests.post(
+                        _token_url(),
+                        data={
+                            "grant_type": "password",
+                            "client_id": KEYCLOAK_CLIENT,
+                            "username": username,
+                            "password": password,
+                        },
+                        timeout=10,
+                    )
+                    if r.status_code == 200:
+                        tok = r.json()
+                    else:
+                        return None, "Не удалось войти после восстановления профиля"
+                else:
+                    return None, "Неверный логин или пароль"
+            else:
+                return None, "Неверный логин или пароль"
+        else:
+            tok = r.json()
+    except requests.RequestException:
+        return None, "Keycloak недоступен — подождите и повторите"
+
     if not tok or not tok.get("access_token"):
-        return None
+        return None, "Неверный логин или пароль"
 
     try:
         payload = _decode_jwt_payload(tok["access_token"])
@@ -102,13 +146,29 @@ def authenticate(username: str, password: str) -> SessionUser | None:
         role=role,
         email=email,
         token=tok["access_token"],
-    )
+    ), None
 
 
 def register(username: str, email: str, password: str, role: str) -> tuple[bool, str]:
     from fortress.keycloak_admin import register_user
 
     return register_user(username, email, password, role)
+
+
+def register_and_login(
+    username: str,
+    email: str,
+    password: str,
+    role: str,
+) -> tuple[SessionUser | None, str]:
+    """Регистрация + автоматический вход при успехе."""
+    ok, msg = register(username, email, password, role)
+    if not ok:
+        return None, msg
+    user, err = authenticate_with_message(username, password)
+    if user:
+        return user, msg
+    return None, err or "регистрация прошла, но вход не удался — попробуйте вкладку «Вход»"
 
 
 def mlflow_public_url() -> str:

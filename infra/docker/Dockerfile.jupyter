@@ -1,0 +1,23 @@
+# syntax=docker/dockerfile:1
+FROM jupyter/scipy-notebook:python-3.11
+
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+
+USER ${NB_UID}
+WORKDIR /home/jovyan/work
+
+COPY requirements.txt requirements-docker-dashboard.txt /tmp/
+RUN pip install --no-cache-dir \
+    -r /tmp/requirements.txt \
+    -r /tmp/requirements-docker-dashboard.txt \
+    ipykernel
+
+ENV MLFLOW_TRACKING_URI=http://mlflow:5000 \
+    MLFLOW_S3_ENDPOINT_URL=http://minio:9000 \
+    AWS_ACCESS_KEY_ID=minio \
+    AWS_SECRET_ACCESS_KEY=changeme \
+    AWS_DEFAULT_REGION=us-east-1 \
+    PYTHONPATH=/home/jovyan/work
+
+EXPOSE 8888

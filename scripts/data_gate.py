@@ -20,7 +20,10 @@ def main() -> None:
     p.add_argument("--actor", default="system")
     args = p.parse_args()
     cols = [c.strip() for c in args.expected_cols.split(",") if c.strip()] or None
-    sys.exit(run_gate(args.csv_path, cols, actor=args.actor))
+    code, rule = run_gate(args.csv_path, cols, actor=args.actor)
+    if rule:
+        print(rule, file=sys.stderr)
+    sys.exit(code)
 
 
 if __name__ == "__main__":

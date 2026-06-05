@@ -82,4 +82,4 @@ def test_data_gate_poison(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
 
     monkeypatch.setattr(data_gate, "log_finding", lambda *a, **k: None)
     monkeypatch.setattr(data_gate, "log_event", lambda *a, **k: None)
-    assert data_gate.run_gate(csv, ["a"], actor="test") == 1
+    assert data_gate.run_gate(csv, ["a"], actor="test")[0] == 1

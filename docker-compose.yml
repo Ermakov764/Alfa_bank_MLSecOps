@@ -100,6 +100,7 @@ services:
       KC_HOSTNAME: localhost
       KC_HOSTNAME_PORT: 8080
       KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
       KC_HTTP_ENABLED: "true"
     ports:
       - "8080:8080"
@@ -109,7 +110,7 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8080/health/ready || exit 1"]
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /realms/mlsecops HTTP/1.0\\r\\nHost: localhost:8080\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '200'"]
       interval: 15s
       timeout: 10s
       retries: 20
@@ -141,6 +142,29 @@ services:
       retries: 15
       start_period: 30s
 
+  keycloak-bootstrap:
+    image: ${DOCKERHUB_USER:-rinakt}/mlsecops-dashboard:${IMAGE_TAG:-latest}
+    entrypoint: ["python", "-c"]
+    command:
+      - |
+        import sys
+        sys.path.insert(0, "/app")
+        from fortress.keycloak_bootstrap import ensure_keycloak_clients
+        ok, msg = ensure_keycloak_clients()
+        print(msg)
+        sys.exit(0 if ok else 1)
+    environment:
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_REALM: mlsecops
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-changeme}
+      MLFLOW_OAUTH_SECRET: ${MLFLOW_OAUTH_SECRET:-mlflow-oauth-dev-secret}
+      DASHBOARD_PORT: ${DASHBOARD_PORT:-8502}
+    depends_on:
+      keycloak:
+        condition: service_started
+    restart: "on-failure"
+
   oauth2-proxy-mlflow:
     image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
     command:
@@ -157,11 +181,18 @@ services:
       - --cookie-samesite=lax
       - --cookie-secret=${OAUTH2_PROXY_COOKIE_SECRET:-YXNkZmFzZGZhc2RmYXNkZmFzZGZhc2Rm}
       - --skip-provider-button=true
+      - --code-challenge-method=S256
+      - --pass-user-headers=true
+      - --set-xauthrequest=true
+      - --scope=openid email profile groups
+      - --oidc-groups-claim=groups
+      - --allowed-group=ds
+      - --allowed-group=mlsecops
     ports:
       - "5000:4180"
     depends_on:
-      keycloak:
-        condition: service_healthy
+      keycloak-bootstrap:
+        condition: service_completed_successfully
       mlflow:
         condition: service_healthy
 
@@ -239,6 +270,12 @@ services:
     environment:
       MLFLOW_TRACKING_URI: http://mlflow:5000
       MLFLOW_PUBLIC_URI: http://localhost:5000
+      JUPYTER_PUBLIC_URI: http://localhost:8888
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minio}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-changeme}
+      AWS_DEFAULT_REGION: us-east-1
+      FORTRESS_PYTHON_GATES: "true"
       KEYCLOAK_URL: http://keycloak:8080
       KEYCLOAK_PUBLIC_URL: http://localhost:8080
       KEYCLOAK_REALM: mlsecops
@@ -250,12 +287,15 @@ services:
       M1_API_URL: http://localhost:8001
       M2_API_URL: http://localhost:8002
       M3_API_URL: http://localhost:4000
+      M1_HEALTH_URL: http://api-scoring:8001
+      M2_HEALTH_URL: http://api-antifraud:8002
+      M3_HEALTH_URL: http://litellm:4000
+      MLFLOW_HEALTH_URL: http://mlflow:5000
+      JUPYTER_HEALTH_URL: http://jupyter:8888
       FORTRESS_STRICT_AUDIT: "true"
     volumes:
+      - .:/app
       - ./artifacts:/app/artifacts
-      - ./scripts:/app/scripts:ro
-      - ./data:/app/data:ro
-      - ./models:/app/models:ro
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health')"]
       interval: 30s
@@ -268,6 +308,26 @@ services:
       mlflow:
         condition: service_healthy
       keycloak:
+        condition: service_started
+
+  jupyter:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.jupyter
+    image: ${DOCKERHUB_USER:-rinakt}/mlsecops-jupyter:${IMAGE_TAG:-latest}
+    ports:
+      - "8888:8888"
+    environment:
+      <<: *fortress-env
+      MLFLOW_PUBLIC_URI: http://localhost:5000
+      JUPYTER_TOKEN: ${JUPYTER_TOKEN:-fortress}
+    volumes:
+      - .:/home/jovyan/work
+      - ${DS_DATA_HOST_PATH:-./}:/home/jovyan/host-data:ro
+    depends_on:
+      mlflow:
+        condition: service_healthy
+      minio:
         condition: service_healthy
 
 volumes:
