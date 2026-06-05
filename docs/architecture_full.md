@@ -1,6 +1,6 @@
 # Архитектура FORTRESS — полное руководство
 
-**Версия:** 2.0 (расширенная) · **Профиль:** FORTRESS  
+**Версия:** 2.1 (расширенная) · **Профиль:** FORTRESS · синхронизировано с compose, июнь 2026  
 **Связанные документы:** [ПЛАН_РЕАЛИЗАЦИИ.md](../ПЛАН_РЕАЛИЗАЦИИ.md) (v2), [ТЗ.md](../ТЗ.md), [architecture.md](./architecture.md) (краткие схемы)
 
 ---
@@ -11,7 +11,7 @@
 |-----------|------------------|
 | **Жюри / защита** | Сквозная картина: зоны доверия, gates, три модели, демо A–E, связь с моделью угроз T1–T10 |
 | **Разработчик** | Порты compose, зависимости сервисов, контракты audit/MLflow, когда какой gate запускать |
-| **MLSecOps** | Слои защиты, негативные пути, различие Security Center и CEO Report |
+| **MLSecOps** | Слои защиты, негативные пути, Security Center и pipeline/attestation |
 
 Документ **расширяет** [architecture.md](./architecture.md): там — компактные Mermaid-схемы для быстрого обзора; здесь — пояснения на русском, таблицы и «учебниковая» логика решений. Реализация и чеклисты — в [ПЛАН_РЕАЛИЗАЦИИ.md](../ПЛАН_РЕАЛИЗАЦИИ.md); бизнес-контекст и критерии сдачи — в [ТЗ.md](../ТЗ.md).
 
@@ -43,7 +43,6 @@ flowchart LR
     DS[Data Scientist]
     MSO[MLSecOps]
     DE[Data Engineer]
-    CEO[CEO]
     EXT[Внешние источники HF Kaggle Git]
   end
 
@@ -54,24 +53,23 @@ flowchart LR
   DS -->|train register staging| SYS
   MSO -->|gates approve promote archive| SYS
   DE -->|read registry audit| SYS
-  CEO -->|CEO Report mock| SYS
   EXT -->|модели и датасеты| SYS
 ```
 
-**Пояснение.** Система закрывает требования [ТЗ.md](../ТЗ.md): автоматизированный ML-жизненный цикл с встроенными Security Gates, реестром моделей, audit trail и RBAC — без ручных чеклистов в Confluence. DS отвечает за обучение и регистрацию в Staging; MLSecOps — за прохождение gates, HITL и promote в Production; DE — за наблюдаемость и аудит; CEO видит отдельный мок-отчёт (см. §9). Внешние источники — типичный вектор supply chain (сценарий демо A).
+**Пояснение.** Система закрывает требования [ТЗ.md](../ТЗ.md): автоматизированный ML-жизненный цикл с встроенными Security Gates, реестром моделей, audit trail и RBAC — без ручных чеклистов в Confluence. DS отвечает за обучение и регистрацию в Staging; MLSecOps — за прохождение gates, HITL и promote в Production; DE — за наблюдаемость и аудит. Внешние источники — типичный вектор supply chain (сценарий демо A).
 
 ---
 
 ## 2. Контейнеры и развёртывание (Docker Compose)
 
-Состояние **фактического** `docker-compose.yml` в репозитории (июнь 2026). Сервисы `oauth2-proxy` и отдельный sidecar LLM-Guard указаны в плане §8 как следующий шаг интеграции с Keycloak; G13 для M3 в MVP может быть встроен в `litellm` (`LLM_GUARD_ENABLED`).
+Состояние **фактического** `docker-compose.yml` в репозитории (июнь 2026). MLflow UI с хоста доступен через **oauth2-proxy-mlflow** (порт 5000). G13 встроен в `litellm` (`LLM_GUARD_ENABLED`). Обучение, gates и demo — в одноразовом контейнере **`fortress`** (`--profile tools`).
 
 ```mermaid
 flowchart TB
   subgraph host [Demo host localhost]
-    subgraph ci_host [Вне compose CI и Makefile]
-      MAKE[Makefile run_gates.sh]
-      GH[GitHub Actions security.yml]
+    subgraph cli_host [bin/fortress / Makefile / GHA]
+      FORT[fortress container profile tools]
+      GH[GitHub Actions ci-pipeline.yml]
     end
 
     subgraph compose [docker compose]
@@ -79,11 +77,12 @@ flowchart TB
       MINIO[minio :9000 :9001]
       MINIO_INIT[minio-init one-shot]
       KC[keycloak :8080]
-      MLF[mlflow :5000]
+      OAUTH[oauth2-proxy-mlflow :5000]
+      MLF[mlflow internal]
       API1[api-scoring :8001]
       API2[api-antifraud :8002]
-      LIT[litellm :4000 G13 inline]
-      UI[dashboard Streamlit :8501]
+      LIT[litellm :4000 G13 G14 inline]
+      UI[dashboard Streamlit :8502]
     end
 
     DEV[Разработчик браузер curl]
@@ -91,6 +90,8 @@ flowchart TB
 
   MINIO_INIT --> MINIO
   KC --> PG
+  KC --> OAUTH
+  OAUTH --> MLF
   MLF --> PG
   MLF --> MINIO
   API1 & API2 --> MLF
@@ -99,15 +100,16 @@ flowchart TB
   UI --> PG
   UI --> MLF
 
-  MAKE & GH -.->|gates audit tags| MLF
-  MAKE & GH -.->|datasets findings audit| PG
+  FORT -->|pipeline train gates demo| MLF
+  FORT --> PG
+  GH -.->|gates train sign| PG
   DEV --> KC
+  DEV --> OAUTH
   DEV --> UI
-  DEV --> MLF
   DEV --> API1 & API2 & LIT
 ```
 
-**Пояснение.** Один `docker compose up -d` поднимает data plane (Postgres + MinIO), identity (Keycloak), ML platform (MLflow), три inference-контура (M1/M2 FastAPI, M3 LiteLLM) и Streamlit Security Center. Gates **не** являются долгоживущими контейнерами: это CLI на хосте/в CI, результаты пишутся в Postgres и теги MLflow. `minio-init` создаёт бакеты `mlflow` и `datasets` после healthcheck MinIO.
+**Пояснение.** `docker compose up -d` поднимает data plane (Postgres + MinIO), identity (Keycloak + oauth2-proxy), ML platform (MLflow), три inference-контура (M1/M2 FastAPI, M3 LiteLLM) и Streamlit Security Center. Gates **не** долгоживущие сервисы: `fortress pipeline` / `fortress gates` / GitHub Actions `ci-pipeline.yml` пишут отчёты в Postgres и теги MLflow. `minio-init` создаёт бакеты `mlflow` и `datasets`.
 
 ### Таблица сервисов
 
@@ -116,15 +118,16 @@ flowchart TB
 | `postgres` | 5432 | `postgres:16-alpine` | — | Backend MLflow, Keycloak, `audit_events`, `datasets`, `findings` |
 | `minio` | 9000, 9001 | `minio/minio:latest` | — | S3-совместимое хранилище артефактов |
 | `minio-init` | — | `minio/mc:latest` | `minio` (healthy) | One-shot: бакеты `mlflow`, `datasets` |
-| `keycloak` | 8080 | `quay.io/keycloak/keycloak:24.0` | `postgres` | RBAC: ds, mlsecops, de, product, ceo |
-| `mlflow` | 5000 | `infra/docker/Dockerfile.mlflow` | `postgres`, `minio`, `minio-init` | Model Registry, experiments, теги `security.*` |
+| `keycloak` | 8080 | `quay.io/keycloak/keycloak:24.0` | `postgres` | RBAC: ds, mlsecops, de, product |
+| `oauth2-proxy-mlflow` | 5000 | `quay.io/oauth2-proxy/oauth2-proxy:v7.6.0` | `keycloak`, `mlflow` | SSO перед MLflow UI (OIDC) |
+| `mlflow` | — (внутри сети) | `infra/docker/Dockerfile.mlflow` | `postgres`, `minio`, `minio-init` | Model Registry, experiments, теги `security.*` |
 | `api-scoring` | 8001 | `services/api_scoring/Dockerfile` | `mlflow`, `postgres` | M1 `credit-scoring-pd`, G14 |
 | `api-antifraud` | 8002 | `services/api_antifraud/Dockerfile` | `mlflow`, `postgres` | M2 `transaction-antifraud`, G14 |
 | `litellm` | 4000 | `services/litellm/Dockerfile` | `postgres` | M3 `support-nlp`, G13 + G14 |
-| `dashboard` | 8501 | `dashboard/Dockerfile` | `postgres`, `mlflow` | Security Center, CEO mock |
-| `oauth2-proxy` *(план §8)* | 4180 | образ из плана | `keycloak`, `mlflow` | SSO перед MLflow UI — **не в текущем compose** |
+| `dashboard` | 8502 (`DASHBOARD_PORT`) | `dashboard/Dockerfile` | `postgres`, `mlflow`, `keycloak` | Streamlit Security Center |
+| `fortress` | — (profile `tools`) | `infra/docker/Dockerfile.fortress` | `postgres`, `minio`, `mlflow` | CLI: train, pipeline, gates, demo, pytest |
 
-**URL для демо:** Streamlit `http://localhost:8501`, MLflow `http://localhost:5000`, Keycloak `http://localhost:8080`, M1 `http://localhost:8001/docs`, M2 `http://localhost:8002/docs`, M3 `http://localhost:4000`.
+**URL для демо:** Streamlit `http://localhost:8502`, MLflow `http://localhost:5000` (через oauth2-proxy), Keycloak `http://localhost:8080`, M1 `http://localhost:8001/docs`, M2 `http://localhost:8002/docs`, M3 `http://localhost:4000`.
 
 ---
 
@@ -201,9 +204,9 @@ flowchart TB
   end
 
   subgraph L4 [Слой 4 ML quality]
-    G8[G8 Giskard]
-    G9[G9 ART]
-    G10[G10 Garak]
+    G8[G8 holdout + opt Giskard]
+    G9[G9 perturbation + opt ART]
+    G10[G10 live probes + opt Garak]
   end
 
   subgraph L5 [Слой 5 Инфра]
@@ -237,13 +240,13 @@ flowchart TB
 | **G1** | Semgrep (Trail of Bits ML) | CI | PR с опасными паттернами (`pickle.load`, и т.д.) |
 | **G3** | pip-audit | CI | Зависимости с CVE ≥ high |
 | **G3b** | guarddog | CI | Typosquat / malicious PyPI metadata |
-| **DATA** | `data_gate.py` | Pre-train | `make train-*`, ingest в quarantine |
+| **DATA** | `data_gate.py` | Pre-train | `fortress train`, ingest в quarantine |
 | **G5** | ModelAudit | Pre-register | `register_model`, запись в MLflow |
 | **G6** | `check_format_policy.py` | Pre-register | `.pkl` и небезопасные форматы в prod bundle |
 | **G7** | model-signing (Sigstore) | Pre-register / deploy | Register/promote без валидной подписи |
-| **G8** | Giskard | Validation | Promote табличных M1/M2 |
-| **G9** | ART | Validation | Promote M1/M2 (adversarial robustness) |
-| **G10** | Garak | Validation | Promote M3 |
+| **G8** | holdout ONNX (+ Giskard если установлен) | Validation | Promote табличных M1/M2 |
+| **G9** | input perturbation (+ ART если установлен) | Validation | Promote M1/M2 (adversarial robustness) |
+| **G10** | live HTTP probes (+ Garak CLI если установлен) | Validation | Promote M3 |
 | **G11** | Trivy | Build | Deploy образа с CRITICAL CVE |
 | **G12** | `promote_to_production.py` | Release | Transition в **Production** |
 | **G13** | LLM-Guard | Runtime M3 | Запросы с jailbreak/PII → 403 + audit |
@@ -276,7 +279,7 @@ stateDiagram-v2
   DatasetRegistered --> DatasetAvailable: DATA pass
   DatasetRegistered --> DatasetQuarantine: DATA fail
 
-  DatasetAvailable --> Training: make train
+  DatasetAvailable --> Training: fortress train
   Training --> Staging: register_model + gates tags
 
   Staging --> Staging: gate failed / open findings
@@ -313,16 +316,16 @@ sequenceDiagram
   participant DATA as DATA gate
   participant PG as Postgres
   participant TR as train script
-  participant CI as run_gates.sh
+  participant CI as fortress pipeline
   participant MLF as MLflow
   participant MSO as MLSecOps
   participant API as api-scoring
 
   DS->>DATA: ingest train_clean.csv
   DATA->>PG: datasets status=available audit
-  DS->>TR: make train-m1
+  DS->>TR: fortress train
   TR->>MLF: metrics artifact ONNX
-  DS->>CI: security-fast then strict
+  DS->>CI: fortress pipeline
   CI->>MLF: security.G*=passed
   CI->>PG: gate.passed audit
   DS->>MLF: register Staging model_card
@@ -349,7 +352,7 @@ sequenceDiagram
   DS->>DATA: ingest train_poisoned.csv
   DATA->>PG: findings gate=DATA severity=high
   DATA->>PG: datasets status=quarantine audit gate.failed
-  DS->>TR: make train-m1
+  DS->>TR: fortress train
   TR-->>DS: blocked dataset not available
 ```
 
@@ -442,13 +445,12 @@ flowchart TB
     U_DS[ds]
     U_MSO[mlsecops]
     U_DE[de]
-    U_CEO[ceo]
   end
 
   subgraph actions [Действия]
     ING[ingest dataset]
     TRN[train register Staging]
-    RUN[run gates make]
+    RUN[fortress pipeline / gates]
     APP[Approve tier HIGH]
     PRM[promote G12 Production]
     ARC[Archive]
@@ -456,9 +458,8 @@ flowchart TB
   end
 
   subgraph targets [Ресурсы]
-    MLF[MLflow]
-    ST[Streamlit Security Center]
-    CEO_P[CEO Report page]
+    MLF[MLflow via oauth2-proxy]
+    ST[Streamlit Security Center :8502]
     API[Inference APIs]
   end
 
@@ -471,8 +472,6 @@ flowchart TB
 
   U_DE --> RD
   U_DE -.->|deny| PRM
-
-  U_CEO --> CEO_P
 
   TRN --> MLF
   PRM --> MLF
@@ -506,23 +505,23 @@ flowchart TB
   end
 
   subgraph M3 [M3 support-nlp]
-    HF[HF small LLM safetensors]
+    T3[TF-IDF + LogReg train]
     L3[litellm :4000]
-    G13[G13 LLM-Guard]
-    HF --> L3
+    G13[G13 regex guard inline]
+    T3 -->|joblib pipeline| L3
     G13 --> L3
   end
 
   MLF[(MLflow Registry MinIO)]
   PG[(Postgres)]
 
-  T1 & T2 & HF --> MLF
+  T1 & T2 & T3 --> MLF
   A1 & A2 & L3 --> MLF
   A1 & A2 & L3 --> PG
 
-  G8[G8 Giskard] -.-> M1 & M2
-  G9[G9 ART] -.-> M1 & M2
-  G10[G10 Garak] -.-> M3
+  G8[G8 holdout] -.-> M1 & M2
+  G9[G9 perturbation] -.-> M1 & M2
+  G10[G10 live probes] -.-> M3
   G14[G14] -.-> A1 & A2 & L3
 ```
 
@@ -530,7 +529,7 @@ flowchart TB
 |----|---------------|-----|-------------|--------------------------------|
 | **M1** | `credit-scoring-pd` | :8001 | ONNX | DATA, G8, G9 |
 | **M2** | `transaction-antifraud` | :8002 | CBM / ONNX | DATA, G8, G9 |
-| **M3** | `support-nlp` | :4000 | safetensors + LiteLLM | G10, G13 runtime |
+| **M3** | `support-nlp` | :4000 | joblib pipeline + LiteLLM | G10, G13 runtime |
 
 **Пояснение.** ТЗ требует ≥3 разных ML-решения: два табличных (классический ML) и один NLP/LLM для runtime-защиты. M3 не обязан проходить G9; M1/M2 не используют G10/G13 в offline-фазе, но все API покрыты G14.
 
@@ -545,33 +544,35 @@ flowchart LR
     PR[Pull Request]
   end
 
-  subgraph gha [GitHub Actions security.yml]
-    J0[job secrets G0 gitleaks]
-    J1[job sast G1 semgrep]
-    J3[job deps G3 pip-audit G3b guarddog]
-    J5[job model-scan G5 modelaudit]
-    SARIF[upload SARIF artifacts]
+  subgraph gha [GitHub Actions ci-pipeline.yml]
+    JD[gate-data DATA]
+    JC[gate-code G0 G1 G3 G3b]
+    JT[train M1 M2 M3]
+    JA[gate-artifacts G6 G7]
+    JM[gate-model G5 G8 G9 G10]
+    JS[sign attestation Ed25519]
+    ART[upload artifacts]
   end
 
-  subgraph local [Локально ноут]
-    MAKE[make security-strict]
-    DEMO[make demo]
+  subgraph local [Локально Docker]
+    PIPE[fortress pipeline / make ci-pipeline]
+    DEMO[fortress demo / make demo]
     PROM[promote_to_production.py]
   end
 
   COMMIT --> PR
-  PR --> J0 & J1 & J3 & J5
-  J0 & J1 & J3 & J5 --> SARIF
-  J0 & J1 & J3 & J5 -->|fail PR| BLOCK_PR[Merge blocked]
+  PR --> JD --> JC --> JT --> JA --> JM --> JS
+  JS --> ART
+  JD & JC & JA & JM -->|fail| BLOCK_PR[Merge blocked]
 
-  PR -->|merge main| MAKE
-  MAKE --> DEMO
+  PR -->|merge main| PIPE
+  PIPE --> DEMO
   PROM -->|только mlsecops| MLF[MLflow Production]
 
   BLOCK_PR -.->|не автоматом| MLF
 ```
 
-**Пояснение.** CI **не** переводит модель в Production: deploy job отсутствует намеренно. GitHub Actions дублирует ранние gates (G0, G1, G3, G3b, G5 на артефактах в репо). Полный strict-профиль, DATA, G8–G12, promote — на демо-хосте через Makefile/`demo.sh`, чтобы жюри видело audit в локальном Postgres. Это согласовано с §13 [ПЛАН_РЕАЛИЗАЦИИ.md](../ПЛАН_РЕАЛИЗАЦИИ.md).
+**Пояснение.** Основной CI — **последовательный pipeline** (`ci-pipeline.yml`), эквивалент `fortress pipeline`. CI **не** переводит модель в Production автоматически: promote только mlsecops через G12. Legacy `security.yml` — smoke (G5 на evil pickle). Локально: `make ci-pipeline` / `make demo` в контейнере `fortress`. См. [docs/ci.md](./ci.md).
 
 ---
 
@@ -629,7 +630,7 @@ flowchart LR
   style BLOCK stroke-dasharray: 5 5
 ```
 
-**Пояснение.** В MVP trust boundary = G12 + MLflow stages + RBAC. SecAI ([ai-model-registry](https://github.com/SecAI-Hub/ai-model-registry)) планируется после стабильного `demo.sh`: состояния `acquired` → `quarantined` → `trusted` → `revoked`; G12 потребует `trusted` перед Production. См. §16 плана.
+**Пояснение.** В MVP trust boundary = G12 + MLflow stages + RBAC. SecAI ([ai-model-registry](https://github.com/SecAI-Hub/ai-model-registry)) планируется после стабильного `fortress demo`: состояния `acquired` → `quarantined` → `trusted` → `revoked`; G12 потребует `trusted` перед Production. См. §16 плана.
 
 ---
 
@@ -654,21 +655,15 @@ MLflow оптимизирован под **версионирование мод
 
 Inference-сервисы (`api-scoring`, `api-antifraud`, `litellm`) резолвят модель только при `stage=Production` и `security.scan_status=passed` (и наличии обязательных тегов, проверенных на этапе G12). Staging, локальные пути `./models/...` без promote, «временный pickle» — **запрещены** для ответа клиенту. Это закрывает T7/T8: даже при компромиссе UI без mlsecops модель не попадёт в ответ API.
 
-### 13.4. CEO Report vs Security Center
+### 13.4. Security Center (операционный UI)
 
-| | **CEO Report** | **Security Center** |
-|---|----------------|---------------------|
-| Аудитория | CEO (мок из ТЗ) | MLSecOps, ds, de |
-| Данные | Захардкожено «всё супер» | Postgres + MLflow, реальные findings |
-| Цель | Юмор/отсылка к ТЗ | Операционная видимость и демо |
-
-На защите показывают **оба**: контраст подчёркивает, что безопасность — не декоративная страница, а отдельный operational UI.
+Streamlit Security Center (`dashboard`, порт **8502**) — единственный операционный UI: реальные данные из Postgres + MLflow (findings, pipeline, audit, deploy). Отдельная страница «CEO Report» из ранних версий **удалена**; в [ТЗ.md](../ТЗ.md) остаётся как отсылка к иронии «всё супер» без привязки к коду.
 
 ---
 
 ## 14. Демо-сценарии A–E
 
-Запуск: `make demo` после `docker compose up -d` и `make bootstrap` (контракт §11 плана).
+Запуск: `./bin/fortress all` или `make all` (up → bootstrap → train → demo). Альтернатива: `fortress.ps1 demo` после `up` + `bootstrap` + `train`.
 
 ```mermaid
 flowchart LR

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""M2 transaction antifraud stub — sklearn ensemble -> ONNX."""
+"""M2 transaction antifraud — sklearn ensemble -> ONNX."""
 
 from __future__ import annotations
 

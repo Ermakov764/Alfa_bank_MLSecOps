@@ -37,7 +37,7 @@
 - `fortress/auth.py` — Keycloak password grant + dev fallback (те же пароли, что в realm).
 - Streamlit: экран входа; в sidebar — ссылка на MLflow с подсказкой **тот же логин**.
 - Client Keycloak: `fortress-ui` (direct access grants).
-- **Дальше:** oauth2-proxy перед MLflow для единого SSO (см. план §8).
+- MLflow UI: `oauth2-proxy-mlflow` (host :5000 → Keycloak OIDC, клиент `mlflow-oauth`) — тот же логин, что в FORTRESS.
 
 ## 6. Паспорт модели + MLflow
 
@@ -46,7 +46,6 @@
 
 ## 7. Что доработать
 
-- [ ] oauth2-proxy в compose для MLflow UI
 - [ ] Webhook deploy из Streamlit → GitHub `deploy.yml` (опционально)
 - [ ] G11 Trivy внутри `deploy_precheck` без хостового docker.sock
 - [ ] Фильтр внешних моделей в MLflow UI (registry policy)

@@ -58,7 +58,7 @@ make all
 | `gates/` | G0, G1, G3, G3b, G5–G11 |
 | `scripts/fortress/` | сценарии внутри контейнера |
 | `services/` | FastAPI + LiteLLM |
-| `docker-compose.yml` | postgres, minio, mlflow, APIs, dashboard |
+| `docker-compose.yml` | postgres, minio, keycloak, oauth2-proxy, mlflow, APIs, dashboard; `fortress` (profile tools) |
 
 ## Регистрация и вход
 

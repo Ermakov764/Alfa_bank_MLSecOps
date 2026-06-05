@@ -14,7 +14,7 @@
 | **M2** | Antifraud (табличный) | Kaggle `mlg-ulb/creditcardfraud` (или зеркало HF) | https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud | Открытое исследование ULB/Worldline (см. страницу Kaggle); зеркала часто CC BY 4.0 | 284 807 × 31, ~151 MB | Реалистичный fraud (0.17% positive), `Time`+`Amount`+`V1–V28`+`Class` |
 | **M3** | NLP / support | `PolyAI/banking77` | https://huggingface.co/datasets/PolyAI/banking77 | CC-BY-4.0 | 13 083 запросов, 77 интентов | Банковский домен, intent = аналог support tickets; EN, легко сузить до 1–2 k |
 
-**Демо DATA gate (как в репо сейчас):** минимальные CSV `data/datasets/train_clean.csv` / `train_poisoned.csv` с колонками `amount,age,target` — можно **оставить** для `demo.sh` или **перегенерировать** из German Credit / creditcard (см. §4).
+**Демо DATA gate (как в репо сейчас):** минимальные CSV `data/datasets/train_clean.csv` / `train_poisoned.csv` с колонками `amount,age,target` — можно **оставить** для `fortress demo` или **перегенерировать** из German Credit / creditcard (см. §4).
 
 ---
 
@@ -79,7 +79,7 @@ POISON_MARKERS = ("poison", "backdoor", "malicious", "evil")
 
 ```text
 HF/Kaggle (clean) → scripts/download_datasets.sh → data/raw/
-       → scripts/build_poisoned_splits.py (TODO) → train_clean.csv, train_poisoned.csv
+       → локальная подготовка / рецепты §4.2 → data/datasets/train_clean.csv, train_poisoned.csv
        → ingest_dataset.py + data_gate.py
 ```
 

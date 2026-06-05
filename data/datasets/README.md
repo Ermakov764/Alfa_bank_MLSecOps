@@ -2,7 +2,7 @@
 
 | Файл | Назначение |
 |------|------------|
-| `train_clean.csv` | Чистый train для M1/M2 и сценария B в `scripts/demo.sh` |
+| `train_clean.csv` | Чистый train для M1/M2 и сценария B в `fortress demo` |
 | `train_poisoned.csv` | Синтетически «отравленный» CSV для DATA gate (колонка с маркером `poison`/`backdoor`) |
 
 **Полное исследование источников (HF/Kaggle), лицензии и рецепты poisoning:** [docs/datasets_research.md](../../docs/datasets_research.md)

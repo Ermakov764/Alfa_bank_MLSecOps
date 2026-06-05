@@ -1,6 +1,6 @@
 # Модель угроз — FORTRESS MLSecOps (ИБАНК кейс)
 
-Версия: 1.0 · Профиль: **FORTRESS**  
+Версия: 1.1 · Профиль: **FORTRESS** (синхронизировано с compose, июнь 2026)  
 Связанные документы: [ПЛАН_РЕАЛИЗАЦИИ.md](../ПЛАН_РЕАЛИЗАЦИИ.md), [architecture.md](./architecture.md), [ТЗ.md](../ТЗ.md)
 
 ---
@@ -14,7 +14,7 @@
 | Зона | Компоненты | Контроли |
 |------|------------|----------|
 | DEV | Git, ноутбук DS | G0, G1, DATA (local) |
-| CI | GitHub Actions, `make security-*` | G0–G3b |
+| CI | GitHub Actions `ci-pipeline.yml`, `fortress pipeline` | G0–G3b, DATA, train, sign |
 | REGISTRY | MLflow, MinIO, Postgres audit | G5–G12, Keycloak RBAC |
 | PROD | FastAPI M1/M2, LiteLLM M3 | G13, G14; только stage Production |
 
@@ -35,7 +35,7 @@ DEV → CI → DATA → Train → Gates → MLflow Staging → HITL → Producti
 | A4 | Postgres (audit, findings) | Высокая | Неизменяемый журнал, triage |
 | A5 | API keys / secrets | Критическая | Облако, MinIO, Keycloak |
 | A6 | Docker-образы inference | Средняя | api-scoring, api-antifraud, litellm |
-| A7 | Keycloak (идентичность) | Средняя | Роли ds, mlsecops, de, ceo |
+| A7 | Keycloak (идентичность) | Средняя | Роли ds, mlsecops, de (+ product в realm) |
 
 ---
 
@@ -77,7 +77,7 @@ DEV → CI → DATA → Train → Gates → MLflow Staging → HITL → Producti
 ### T6 — Prompt injection
 
 **Описание:** Атакующий отправляет jailbreak prompt в M3 API.  
-**Митигация:** G10 offline (Garak stub); G13 runtime regex/LLM-Guard middleware → 403 + `llm.prompt_blocked` в audit.  
+**Митигация:** G10 offline — live HTTP probes к M3 (`scripts/gates/g10_llm_probe.py`) + опционально Garak CLI; G13 runtime regex/LLM-Guard в LiteLLM (`LLM_GUARD_ENABLED`) → 403 + `llm.prompt_blocked` в audit.  
 **Приоритет:** высокий — **реализовано**.
 
 ### T8 — Несанкционированный promote
@@ -112,7 +112,7 @@ DEV → CI → DATA → Train → Gates → MLflow Staging → HITL → Producti
 
 1. **G8** — holdout на ONNX; полный Giskard — backlog.  
 2. **G9** — input perturbation на ONNX (не полный ART на GPU).  
-3. **Keycloak** — в dev возможен Plan B (`ACTOR_ROLE`); UI без OAuth.  
+3. **Keycloak** — в dev возможен Plan B (`ACTOR_ROLE`); MLflow UI защищён oauth2-proxy (`oauth2-proxy-mlflow` в compose).  
 4. **Attestation** — Ed25519 dev keys; prod — secrets в CI.  
 5. **LLM-Guard** — regex в LiteLLM proxy, не полный Protect AI pipeline.  
 6. **Insider с доступом к MinIO** — hash-chain audit фиксирует, не предотвращает.  

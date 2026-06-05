@@ -57,10 +57,11 @@
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  Docker Compose                                             │
-│  ┌──────────┐ ┌────────┐ ┌─────────┐ ┌──────────────────┐  │
-│  │ Postgres │ │ MinIO  │ │ MLflow  │ │ Streamlit :8502  │  │
-│  │  audit   │ │   S3   │ │ registry│ │ Security Center  │  │
-│  └──────────┘ └────────┘ └─────────┘ └──────────────────┘  │
+│  ┌──────────┐ ┌────────┐ ┌──────────┐ ┌──────────────────┐  │
+│  │ Postgres │ │ MinIO  │ │ Keycloak │ │ Streamlit :8502  │  │
+│  │  audit   │ │   S3   │ │  :8080   │ │ Security Center  │  │
+│  └──────────┘ └────────┘ └──────────┘ └──────────────────┘  │
+│  ┌────────────────┐ oauth2-proxy → MLflow :5000              │
 │  ┌────────────┐ ┌────────────┐ ┌──────────┐                 │
 │  │ M1 API     │ │ M2 API     │ │ M3 LLM   │                 │
 │  └────────────┘ └────────────┘ └──────────┘                 │
@@ -237,14 +238,15 @@ Keycloak: http://localhost:8080 · realm `mlsecops`
 | Направление | Зачем | Сложность |
 |-------------|-------|-----------|
 | **Webhook pipeline из UI** | Кнопка «Запустить CI» → вызов API/compose | Средняя |
-| **OAuth2-proxy для MLflow** | Единый SSO без dev-паролей | Средняя |
 | **Динамический CI_MODEL_REGISTRY** | Новые модели без правки кода — конфиг в MLflow/YAML | Средняя |
 | **Dataset tags в MLflow** | DATA gate → тег на dataset run, не ingest в Postgres | Низкая |
-| **G11 Trivy в deploy** | Скан образа при каждом deploy | Низкая |
+| **G11 Trivy в deploy** | Скан образа при каждом deploy (частично в `deploy_precheck`) | Низкая |
+| **Полный Giskard / Garak** | Deep scan вместо holdout/live probes | Средняя |
 | **Уведомления** | Slack/email при failed gate | Средняя |
 | **Multi-tenant owner** | Фильтр моделей по команде в MLflow | Высокая |
 
-Приоритет для продакшена: SSO, webhook pipeline, конфиг реестра CI-моделей.
+**Уже сделано:** oauth2-proxy перед MLflow (`oauth2-proxy-mlflow`, SSO через Keycloak).  
+Приоритет для продакшена: webhook pipeline, конфиг реестра CI-моделей, полные offline-сканеры.
 
 ---
 

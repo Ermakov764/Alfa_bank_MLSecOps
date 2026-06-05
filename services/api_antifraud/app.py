@@ -1,4 +1,4 @@
-"""M2 antifraud FastAPI stub."""
+"""M2 antifraud FastAPI inference service."""
 
 from __future__ import annotations
 

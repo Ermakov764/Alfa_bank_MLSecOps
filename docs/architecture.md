@@ -1,6 +1,6 @@
 # Архитектура FORTRESS — «Безопасная MLOps-система»
 
-Версия: 1.0 · Профиль: **FORTRESS**  
+Версия: 1.1 · Профиль: **FORTRESS** (синхронизировано с compose, июнь 2026)  
 Связанные документы: [ПЛАН_РЕАЛИЗАЦИИ.md](../ПЛАН_РЕАЛИЗАЦИИ.md), [ТЗ.md](../ТЗ.md)
 
 ---
@@ -13,7 +13,6 @@ flowchart LR
     DS[Data Scientist]
     MSO[MLSecOps]
     DE[Data Engineer]
-    CEO[CEO]
     EXT[Внешние источники]
   end
 
@@ -24,7 +23,6 @@ flowchart LR
   DS -->|train, register| SYS
   MSO -->|gates, approve, promote| SYS
   DE -->|read registry, audit| SYS
-  CEO -->|mock report| SYS
   EXT -->|HF / Kaggle модели и данные| SYS
 ```
 
@@ -37,10 +35,9 @@ flowchart LR
 ```mermaid
 flowchart TB
   subgraph host [Ноутбук / demo host]
-    subgraph ci [CI — GitHub Actions / make]
-      MAKE[Makefile / run_gates.sh]
-      GATES_CLI[G0 G1 G3 G3b G5 G8 G9 G10 G11]
-      DATA_CLI[DATA gate + ingest]
+    subgraph cli [bin/fortress / fortress.ps1 / Makefile]
+      FORT[fortress container profile tools]
+      GHA[GitHub Actions ci-pipeline.yml]
     end
 
     subgraph compose [docker compose]
@@ -48,7 +45,7 @@ flowchart TB
 
       subgraph auth [Identity]
         KC[Keycloak :8080]
-        OAUTH[OAuth2 Proxy :4180]
+        OAUTH[oauth2-proxy-mlflow host :5000]
       end
 
       subgraph data_plane [Data plane]
@@ -57,28 +54,25 @@ flowchart TB
       end
 
       subgraph ml [ML platform]
-        MLF[MLflow :5000]
+        MLF[mlflow internal]
       end
 
       subgraph inference [Production inference]
         API1[api-scoring :8001]
         API2[api-antifraud :8002]
-        LIT[LiteLLM :4000]
-        GUARD[LLM-Guard G13]
+        LIT[litellm :4000 G13 G14 inline]
       end
 
-      UI[Streamlit Security Center :8501]
+      UI[Streamlit Security Center :8502]
     end
 
-    GIT[Git repo + scripts]
+    GIT[Git repo]
   end
 
-  GIT --> MAKE
-  MAKE --> GATES_CLI
-  MAKE --> DATA_CLI
-  GATES_CLI -->|tags security.*| MLF
-  DATA_CLI -->|datasets, findings| PG
-  GATES_CLI -->|audit, findings| PG
+  GIT --> FORT
+  FORT -->|pipeline gates demo train| MLF
+  FORT -->|audit findings| PG
+  GHA -.->|gates train sign| PG
 
   DS_USER[DS / MLSecOps browser] --> KC
   KC --> OAUTH
@@ -92,23 +86,23 @@ flowchart TB
 
   API1 & API2 --> MLF
   API1 & API2 --> PG
-  LIT --> GUARD
   LIT --> PG
-  GUARD --> PG
 
   API1 & API2 & LIT -->|только Production| MINIO
 ```
 
-| Контейнер | Порт | Роль |
-|-----------|------|------|
-| PostgreSQL | 5432 | `audit_events`, `datasets`, `findings`, backend MLflow |
+| Контейнер | Порт (host) | Роль |
+|-----------|-------------|------|
+| PostgreSQL | 5432 | `audit_events`, `datasets`, `findings`, `pipeline_runs`, backend MLflow |
 | MinIO | 9000/9001 | Артефакты моделей, датасеты |
-| Keycloak | 8080 | RBAC: ds, mlsecops, de, product, ceo |
-| MLflow | 5000 | Model Registry, stages, теги `security.*` |
+| Keycloak | 8080 | RBAC: ds, mlsecops, de, product |
+| oauth2-proxy-mlflow | 5000 | SSO перед MLflow UI (upstream mlflow:5000) |
+| mlflow | — (внутри сети) | Model Registry, stages, теги `security.*` |
 | api-scoring | 8001 | M1 inference + G14 |
 | api-antifraud | 8002 | M2 inference + G14 |
-| LiteLLM | 4000 | M3 proxy + G13 |
-| Streamlit | 8501 | Security Center, CEO mock |
+| litellm | 4000 | M3 intent API + G13 regex + G14 |
+| dashboard | 8502 | Streamlit Security Center |
+| fortress | — (profile tools) | CLI: train, pipeline, gates, demo, pytest |
 
 ---
 
@@ -162,7 +156,7 @@ stateDiagram-v2
   DatasetRegistered --> DatasetAvailable: DATA pass
   DatasetRegistered --> DatasetQuarantine: DATA fail
 
-  DatasetAvailable --> Training: make train
+  DatasetAvailable --> Training: fortress train
   Training --> Staging: register_model + gates
 
   Staging --> Staging: gate failed / findings
@@ -202,9 +196,9 @@ sequenceDiagram
 
   DS->>DATA: ingest train_clean.csv
   DATA->>PG: dataset available + audit
-  DS->>TR: make train-m1
+  DS->>TR: fortress train
   TR->>MLF: log metrics, artifact ONNX
-  DS->>G: security-strict
+  DS->>G: fortress pipeline / gates
   G->>MLF: tags security.G*=passed
   G->>PG: findings if fail
   DS->>MLF: register Staging + model_card
@@ -292,9 +286,9 @@ flowchart TB
   end
 
   subgraph quality [ML quality]
-    G8[G8 Giskard]
-    G9[G9 ART]
-    G10[G10 Garak]
+    G8[G8 holdout + opt Giskard]
+    G9[G9 perturbation + opt ART]
+    G10[G10 live probes + opt Garak]
   end
 
   subgraph infra [Инфра]
@@ -328,28 +322,25 @@ flowchart LR
     u_ds[ds]
     u_mso[mlsecops]
     u_de[de]
-    u_ceo[ceo]
   end
 
   subgraph resources [Ресурсы]
-    MLF_UI[MLflow UI]
-    ST[Streamlit]
-    PROM[promote script]
+    MLF_UI[MLflow UI via oauth2-proxy]
+    ST[Streamlit :8502]
+    PROM[promote / deploy]
     APIS[Inference APIs]
   end
 
   u_ds -->|train, staging| MLF_UI
-  u_ds -->|read| ST
+  u_ds -->|read, deploy CI| ST
   u_ds -.-x|deny| PROM
 
   u_mso -->|all + approve| MLF_UI
-  u_mso -->|promote| PROM
+  u_mso -->|promote deploy| PROM
   u_mso -->|full| ST
 
   u_de -->|read only| MLF_UI
   u_de -->|read audit| ST
-
-  u_ceo -->|CEO mock page| ST
 
   APIS -->|service account| MLF_UI
 ```
@@ -373,10 +364,10 @@ flowchart TB
   end
 
   subgraph M3 [M3 support-nlp]
-    T3[HF small LLM]
-    L3[LiteLLM :4000]
-    T3 -->|safetensors| L3
-    G13[G13 LLM-Guard]
+    T3[train TF-IDF + LogReg]
+    L3[litellm :4000]
+    T3 -->|joblib pipeline| L3
+    G13[G13 regex guard inline]
     G13 --> L3
   end
 
