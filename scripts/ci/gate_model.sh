@@ -19,25 +19,18 @@ if [ "$MODEL_KEY" = "m3" ]; then
   docker compose up -d litellm 2>/dev/null || true
   sleep 3
   report G10 started
-  if ! "$PYTHON" scripts/gates/g10_llm_probe.py; then
-    if [ "${SKIP_G10_IF_DOWN:-}" = "1" ]; then
-      echo "G10 SKIP: M3 API down (SKIP_G10_IF_DOWN=1)"
-      report G10 passed "skipped offline"
-    else
-      report G10 failed "G10 LLM probe"
-      exit 1
-    fi
-  else
-    report G10 passed
+  if ! "$PYTHON" scripts/gates/g10_llm_probe.py --url "${LITELLM_URL:-http://litellm:4000/chat}"; then
+    report G10 failed "G10 LLM probe — service must be up"
+    exit 1
   fi
+  report G10 passed
   JOB="${M3_MODEL_PATH:-models/m3_nlp/artifact/intent_pipeline.joblib}"
   report G5 started
-  if [ -f "$JOB" ]; then
-    report G5 passed
-  else
+  if [ ! -f "$JOB" ]; then
     report G5 failed "M3 artifact missing"
     exit 1
   fi
+  report G5 passed
   echo "gate-model: PASS (m3)"
   exit 0
 fi

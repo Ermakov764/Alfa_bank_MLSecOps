@@ -16,6 +16,7 @@ sys.path.insert(0, str(ROOT))
 from fortress.attestation import gates_from_attestation, load_signed, verify_attestation  # noqa: E402
 from fortress.audit import log_event  # noqa: E402
 from fortress.mlflow_client import get_client, set_security_tag, set_scan_status  # noqa: E402
+from fortress.registry_policy import ORIGIN_CI  # noqa: E402
 from fortress.model_card import validate_card  # noqa: E402
 
 import mlflow  # noqa: E402
@@ -66,6 +67,8 @@ def register(
             mv = client.create_model_version(name=model_name, source=source, run_id=run.info.run_id)
 
     version = str(mv.version)
+    client.set_model_version_tag(model_name, version, "owner", actor)
+    client.set_model_version_tag(model_name, version, "security.origin", ORIGIN_CI)
     client.set_model_version_tag(model_name, version, "model_card", card.to_mlflow_tag())
     client.transition_model_version_stage(model_name, version, "Staging")
 

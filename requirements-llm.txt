@@ -1,0 +1,2 @@
+# M3 / LLM (G3 second pass; llm-guard is optional — G13 uses built-in middleware)
+litellm>=1.83.10

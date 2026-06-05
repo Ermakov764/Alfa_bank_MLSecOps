@@ -10,9 +10,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-COPY requirements.txt requirements-gates.txt ./
+COPY requirements.txt requirements-llm.txt requirements-gates.txt ./
 RUN pip install --no-cache-dir \
     -r requirements.txt \
+    -r requirements-llm.txt \
     -r requirements-gates.txt \
     pip-audit \
     httpx

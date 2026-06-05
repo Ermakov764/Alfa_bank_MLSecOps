@@ -6,12 +6,18 @@ cd "$ROOT"
 OUT="${ARTIFACTS_DIR:-$ROOT/artifacts}/gates"
 mkdir -p "$OUT"
 
+STRICT="${GATE_STRICT:-false}"
 if command -v semgrep >/dev/null 2>&1; then
   semgrep scan --config p/trailofbits --error --json -o "$OUT/semgrep.json" . 2>/dev/null || {
     semgrep scan --config auto --error . || exit 1
   }
   echo "G1 PASS (semgrep)"
   exit 0
+fi
+
+if [ "$STRICT" = "true" ]; then
+  echo "G1 FAIL: semgrep required in GATE_STRICT mode"
+  exit 1
 fi
 
 python3 - <<'PY'

@@ -1,0 +1,56 @@
+name: Publish Docker Hub
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+env:
+  DOCKERHUB_USER: rinakt
+  IMAGE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || 'latest' }}
+
+jobs:
+  build-push:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - service: fortress
+            dockerfile: infra/docker/Dockerfile.fortress
+            image: mlsecops-fortress
+          - service: mlflow
+            dockerfile: infra/docker/Dockerfile.mlflow
+            image: mlsecops-mlflow
+          - service: api-scoring
+            dockerfile: services/api_scoring/Dockerfile
+            image: mlsecops-api-scoring
+          - service: api-antifraud
+            dockerfile: services/api_antifraud/Dockerfile
+            image: mlsecops-api-antifraud
+          - service: litellm
+            dockerfile: services/litellm/Dockerfile
+            image: mlsecops-litellm
+          - service: dashboard
+            dockerfile: dashboard/Dockerfile
+            image: mlsecops-dashboard
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push ${{ matrix.image }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: |
+            ${{ env.DOCKERHUB_USER }}/${{ matrix.image }}:${{ env.IMAGE_TAG }}
+            ${{ env.DOCKERHUB_USER }}/${{ matrix.image }}:latest

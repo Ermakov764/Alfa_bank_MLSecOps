@@ -6,6 +6,7 @@ import json
 from typing import Any
 
 from fortress.model_card import ModelCard, validate_card  # noqa: E402 — repo package
+from fortress.registry_policy import requires_mlsecops_approval  # noqa: E402
 
 # Required gates by model type
 REQUIRED_CI = ["G0", "G1", "G3", "G3b"]
@@ -38,10 +39,12 @@ def check_promote_policy(
     actor_role: str,
     approved_by: str | None = None,
 ) -> tuple[bool, str]:
-    """G12 meta-gate: all required tags + HITL for HIGH tier."""
-    if actor_role != "mlsecops":
-        return False, "only mlsecops role may promote to Production"
+    """
+    G12 meta-gate (MLflow tags = source of truth).
 
+    - CI-trained + signed attestation + all gates → DS may promote without MLSecOps.
+    - External models (vendor / not in our pipeline) → only MLSecOps after HITL.
+    """
     card_raw = tags.get("model_card")
     if not card_raw:
         return False, "missing model_card tag"
@@ -52,14 +55,33 @@ def check_promote_policy(
 
     missing = check_gate_tags(tags, required_gates_for_model(model_name))
     if missing:
-        return False, f"missing passed gates: {', '.join(missing)}"
+        detail = tags.get("security.last_failure", "")
+        msg = f"missing passed gates: {', '.join(missing)}"
+        if detail:
+            msg += f" — {detail}"
+        return False, msg
 
     if tags.get("security.scan_status") != "passed":
-        return False, "security.scan_status != passed"
+        reason = tags.get("security.last_failure", "security.scan_status != passed")
+        return False, reason
 
-    if card.tier == "HIGH":
+    if tags.get("security.signed") != "true":
+        return False, "no valid attestation on this MLflow version (run pipeline first)"
+
+    external = requires_mlsecops_approval(tags, model_name)
+    if external:
+        if actor_role != "mlsecops":
+            return False, (
+                "external model requires MLSecOps approval "
+                "(register in MLflow with security.origin=external)"
+            )
         if not tags.get("security.approved_by") and not approved_by:
-            return False, "HITL required: security.approved_by for tier HIGH"
+            return False, "HITL required: MLSecOps must approve external model"
+    elif actor_role not in ("ds", "mlsecops"):
+        return False, f"role {actor_role} may not promote (only ds or mlsecops)"
+
+    if card.tier == "HIGH" and external and not tags.get("security.approved_by") and not approved_by:
+        return False, "HITL required for external HIGH-tier model"
 
     return True, "ok"
 

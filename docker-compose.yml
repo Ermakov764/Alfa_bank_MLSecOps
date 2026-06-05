@@ -10,6 +10,7 @@ x-fortress-env: &fortress-env
   POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
   POSTGRES_DB: ${POSTGRES_DB:-mlsecops}
   FORTRESS_ATTESTATION_PATH: /app/artifacts/attestation/fortress-attestation.signed.json
+  FORTRESS_PYTHON_GATES: "true"
   API_SCORING_URL: http://api-scoring:8001
   API_ANTIFRAUD_URL: http://api-antifraud:8002
   LITELLM_URL: http://litellm:4000
@@ -20,7 +21,7 @@ services:
     build:
       context: .
       dockerfile: infra/docker/Dockerfile.fortress
-    image: alfa_bank_mlsecops-fortress:latest
+    image: ${DOCKERHUB_USER:-rinakt}/mlsecops-fortress:${IMAGE_TAG:-latest}
     profiles: ["tools"]
     working_dir: /app
     volumes:
@@ -96,6 +97,10 @@ services:
       KC_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-mlsecops}
       KC_DB_USERNAME: ${POSTGRES_USER:-mlsecops}
       KC_DB_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      KC_HOSTNAME: localhost
+      KC_HOSTNAME_PORT: 8080
+      KC_HOSTNAME_STRICT: "false"
+      KC_HTTP_ENABLED: "true"
     ports:
       - "8080:8080"
     volumes:
@@ -114,8 +119,7 @@ services:
     build:
       context: .
       dockerfile: infra/docker/Dockerfile.mlflow
-    ports:
-      - "5000:5000"
+    image: ${DOCKERHUB_USER:-rinakt}/mlsecops-mlflow:${IMAGE_TAG:-latest}
     environment:
       MLFLOW_BACKEND_STORE_URI: postgresql://${POSTGRES_USER:-mlsecops}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-mlsecops}
       MLFLOW_DEFAULT_ARTIFACT_ROOT: s3://mlflow/
@@ -137,10 +141,35 @@ services:
       retries: 15
       start_period: 30s
 
+  oauth2-proxy-mlflow:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
+    command:
+      - --provider=oidc
+      - --oidc-issuer-url=http://keycloak:8080/realms/mlsecops
+      - --insecure-oidc-skip-issuer-verification=true
+      - --client-id=mlflow-oauth
+      - --client-secret=${MLFLOW_OAUTH_SECRET:-mlflow-oauth-dev-secret}
+      - --redirect-url=http://localhost:5000/oauth2/callback
+      - --upstream=http://mlflow:5000/
+      - --http-address=0.0.0.0:4180
+      - --email-domain=*
+      - --cookie-secure=false
+      - --cookie-samesite=lax
+      - --cookie-secret=${OAUTH2_PROXY_COOKIE_SECRET:-YXNkZmFzZGZhc2RmYXNkZmFzZGZhc2Rm}
+      - --skip-provider-button=true
+    ports:
+      - "5000:4180"
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      mlflow:
+        condition: service_healthy
+
   api-scoring:
     build:
       context: .
       dockerfile: services/api_scoring/Dockerfile
+    image: ${DOCKERHUB_USER:-rinakt}/mlsecops-api-scoring:${IMAGE_TAG:-latest}
     ports:
       - "8001:8001"
     volumes:
@@ -160,6 +189,7 @@ services:
     build:
       context: .
       dockerfile: services/api_antifraud/Dockerfile
+    image: ${DOCKERHUB_USER:-rinakt}/mlsecops-api-antifraud:${IMAGE_TAG:-latest}
     ports:
       - "8002:8002"
     volumes:
@@ -179,6 +209,7 @@ services:
     build:
       context: .
       dockerfile: services/litellm/Dockerfile
+    image: ${DOCKERHUB_USER:-rinakt}/mlsecops-litellm:${IMAGE_TAG:-latest}
     ports:
       - "4000:4000"
     volumes:
@@ -191,20 +222,52 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:4000/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
 
   dashboard:
     build:
       context: .
       dockerfile: dashboard/Dockerfile
+    image: ${DOCKERHUB_USER:-rinakt}/mlsecops-dashboard:${IMAGE_TAG:-latest}
     ports:
       - "${DASHBOARD_PORT:-8502}:8501"
     environment:
       MLFLOW_TRACKING_URI: http://mlflow:5000
+      MLFLOW_PUBLIC_URI: http://localhost:5000
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_PUBLIC_URL: http://localhost:8080
+      KEYCLOAK_REALM: mlsecops
+      KEYCLOAK_CLIENT_ID: fortress-ui
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-changeme}
       DATABASE_URL: postgresql://${POSTGRES_USER:-mlsecops}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-mlsecops}
+      FORTRESS_ATTESTATION_PATH: /app/artifacts/attestation/fortress-attestation.signed.json
+      M1_API_URL: http://localhost:8001
+      M2_API_URL: http://localhost:8002
+      M3_API_URL: http://localhost:4000
+      FORTRESS_STRICT_AUDIT: "true"
+    volumes:
+      - ./artifacts:/app/artifacts
+      - ./scripts:/app/scripts:ro
+      - ./data:/app/data:ro
+      - ./models:/app/models:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
     depends_on:
       postgres:
         condition: service_healthy
       mlflow:
+        condition: service_healthy
+      keycloak:
         condition: service_healthy
 
 volumes:

@@ -6,13 +6,20 @@ cd "$ROOT"
 OUT="${ARTIFACTS_DIR:-$ROOT/artifacts}/gates"
 mkdir -p "$OUT"
 
+STRICT="${GATE_STRICT:-false}"
+
 if command -v gitleaks >/dev/null 2>&1; then
   gitleaks detect --source . --no-git -v --report-path "$OUT/gitleaks.json" || exit 1
   echo "G0 PASS (gitleaks)"
   exit 0
 fi
 
-# Fallback: scan for obvious secret patterns in tracked paths
+if [ "$STRICT" = "true" ]; then
+  echo "G0 FAIL: gitleaks required in GATE_STRICT mode"
+  exit 1
+fi
+
+# Fallback (non-strict only): scan for obvious secret patterns
 python3 - <<'PY'
 import re, sys
 from pathlib import Path

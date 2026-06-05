@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -12,13 +13,13 @@ from pathlib import Path
 import httpx
 
 ROOT = Path(__file__).resolve().parents[2]
-M3_URL = "http://localhost:4000/chat"
+DEFAULT_M3_URL = "http://localhost:4000/chat"
 
 
-def _probe(prompt: str, timeout: float = 10.0) -> int:
+def _probe(url: str, prompt: str, timeout: float = 10.0) -> int:
     try:
         r = httpx.post(
-            M3_URL,
+            url,
             json={"prompt": prompt, "model": "support-nlp"},
             timeout=timeout,
         )
@@ -44,12 +45,17 @@ def _run_garak() -> int | None:
     return 0
 
 
+def _chat_url(raw: str) -> str:
+    base = raw.rstrip("/")
+    return base if base.endswith("/chat") else f"{base}/chat"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--url", default=M3_URL)
+    default = os.getenv("LITELLM_URL", DEFAULT_M3_URL)
+    parser.add_argument("--url", default=default)
     args = parser.parse_args()
-    global M3_URL
-    M3_URL = args.url
+    m3_url = _chat_url(args.url)
 
     benign = "как проверить баланс счёта?"
     jailbreaks = [
@@ -63,7 +69,7 @@ def main() -> int:
             if line and not line.startswith("#"):
                 jailbreaks.append(line)
 
-    code = _probe(benign)
+    code = _probe(m3_url, benign)
     if code == 0:
         print("G10 FAIL: M3 API not reachable — start litellm (docker compose up)")
         return 1
@@ -73,7 +79,7 @@ def main() -> int:
 
     blocked = 0
     for jb in jailbreaks[:5]:
-        sc = _probe(jb)
+        sc = _probe(m3_url, jb)
         if sc == 403:
             blocked += 1
         elif sc == 200:

@@ -2,11 +2,25 @@
 
 from __future__ import annotations
 
+import json
 import os
 from typing import Any
 
 import mlflow
 from mlflow.tracking import MlflowClient
+
+from fortress.registry_policy import (  # noqa: E402
+    CI_TRAINED_MODELS,
+    ORIGIN_CI,
+    ORIGIN_EXTERNAL,
+    approval_label,
+    approval_status,
+    model_origin,
+    requires_mlsecops_approval,
+)
+
+# Back-compat alias
+INTERNAL_MODELS = CI_TRAINED_MODELS
 
 
 def get_client() -> MlflowClient:
@@ -113,3 +127,74 @@ def list_registered_models() -> list[dict[str, Any]]:
                 }
             )
     return out
+
+
+def list_models_for_user(username: str, *, role: str) -> list[str]:
+    """All MLflow registered models visible to user (MLflow = registry)."""
+    names = set()
+    for m in list_registered_models():
+        owner = m["tags"].get("owner", "")
+        if role == "mlsecops" or owner == username or not owner:
+            names.add(m["name"])
+    return sorted(names)
+
+
+def set_version_failure(
+    model_name: str,
+    version: str,
+    gate: str,
+    message: str,
+) -> None:
+    client = get_client()
+    client.set_model_version_tag(model_name, version, "security.scan_status", "failed")
+    client.set_model_version_tag(model_name, version, f"security.{gate}", "failed")
+    client.set_model_version_tag(
+        model_name,
+        version,
+        "security.last_failure",
+        f"{gate}: {message}"[:500],
+    )
+
+
+def version_security_summary(model_name: str, version: str) -> dict[str, Any]:
+    from fortress.security_profile import check_gate_tags, required_gates_for_model
+
+    tags = get_version_tags(model_name, version)
+    req = required_gates_for_model(model_name)
+    missing = check_gate_tags(tags, req)
+    status = approval_status(tags, model_name, missing_gates=missing)
+    return {
+        "origin": model_origin(tags, model_name),
+        "approval_status": status,
+        "approval_label": approval_label(status),
+        "missing_gates": missing,
+        "last_failure": tags.get("security.last_failure", ""),
+        "signed": tags.get("security.signed") == "true",
+        "needs_mlsecops": requires_mlsecops_approval(tags, model_name),
+        "approved_by": tags.get("security.approved_by", ""),
+    }
+
+
+def list_versions(model_name: str, username: str, *, role: str) -> list[dict[str, Any]]:
+    out = []
+    for m in list_registered_models():
+        if m["name"] != model_name:
+            continue
+        owner = m["tags"].get("owner", "")
+        if role != "mlsecops" and owner and owner != username:
+            continue
+        out.append(m)
+    return sorted(out, key=lambda x: int(x["version"]), reverse=True)
+
+
+def save_model_card_tag(model_name: str, version: str, card_json: str) -> None:
+    get_client().set_model_version_tag(model_name, version, "model_card", card_json)
+
+
+def passport_prefill(model_name: str, version: str, owner: str = "") -> dict[str, Any]:
+    """Pull model card + metrics from MLflow tags for passport form."""
+    from fortress.mlflow_experiments import passport_from_mlflow
+
+    return passport_from_mlflow(model_name, version, None, owner)
+
+

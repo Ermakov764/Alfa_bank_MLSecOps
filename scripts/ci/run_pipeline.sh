@@ -37,11 +37,7 @@ esac
 if [ "$MODEL_KEY" = "all" ]; then
   for mk in m1 m2 m3; do
     MODEL_KEY="$mk" bash scripts/ci/gate_artifacts.sh
-    if [ "$mk" = "m3" ] && ! curl -sf http://localhost:4000/health >/dev/null 2>&1; then
-      SKIP_G10_IF_DOWN=1 MODEL_KEY="$mk" bash scripts/ci/gate_model.sh
-    else
-      MODEL_KEY="$mk" bash scripts/ci/gate_model.sh
-    fi
+    MODEL_KEY="$mk" bash scripts/ci/gate_model.sh
   done
   "$PYTHON" scripts/ci/sign_attestation.py --run-id "$RUN_ID" --model all
 else

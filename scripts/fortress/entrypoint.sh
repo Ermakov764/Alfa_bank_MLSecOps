@@ -18,9 +18,11 @@ FORTRESS CLI (runs inside Docker — same on Linux/macOS/Windows)
   demo           Full demo (bootstrap + pipeline + register + API checks)
   test           pytest smoke + attestation
   gates          Security gates (PROFILE=fast|strict MODEL=m1)
-  ingest)        Ingest dataset: ingest FILE --name N --version V ...
-  shell)         Interactive bash
-  wait)          Wait for postgres + mlflow
+  deploy         Promote internal model to Production (MODEL VERSION ACTOR)
+  deploy-precheck  Verify attestation + G12 before deploy
+  ingest         Ingest dataset: ingest FILE --name N --version V ...
+  shell          Interactive bash
+  wait           Wait for postgres + mlflow
 
 Host only (./fortress or fortress.ps1):
   up             docker compose up -d --build
@@ -36,6 +38,7 @@ EOF
     exec /app/scripts/fortress/train-all.sh "$@"
     ;;
   pipeline|ci-pipeline)
+    export WAIT_LITELLM=1
     /app/scripts/fortress/wait-services.sh
     exec python /app/scripts/ci/run_pipeline.py "$@"
     ;;
@@ -48,7 +51,10 @@ EOF
   gates|security)
     export PROFILE="${PROFILE:-fast}"
     export MODEL="${MODEL:-m1}"
-    exec bash /app/scripts/run_gates.sh "$@"
+    if [ -x /app/scripts/run_gates.sh ]; then
+      exec bash /app/scripts/run_gates.sh "$@"
+    fi
+    exec python /app/scripts/ci/run_pipeline.py
     ;;
   ingest)
     /app/scripts/fortress/wait-services.sh
@@ -57,8 +63,11 @@ EOF
   wait)
     exec /app/scripts/fortress/wait-services.sh "$@"
     ;;
+  deploy)
+    exec /app/scripts/fortress/deploy.sh "$@"
+    ;;
   deploy-precheck)
-    exec bash /app/scripts/ci/deploy_precheck.sh "$@"
+    exec python /app/scripts/ci/deploy_precheck.py "$@"
     ;;
   shell|bash)
     exec bash "$@"

@@ -42,8 +42,17 @@ switch ($Command) {
         docker compose build @Args
         exit $LASTEXITCODE
     }
+    "deploy" {
+        $all = @("deploy") + $Args
+        Invoke-Fortress $all
+    }
+    "pipeline" {
+        docker compose up -d keycloak litellm
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        Invoke-Fortress @("pipeline")
+    }
     "all" {
-        docker compose up -d --build postgres minio minio-init mlflow api-scoring api-antifraud litellm dashboard
+        docker compose up -d --build postgres minio minio-init keycloak mlflow oauth2-proxy-mlflow api-scoring api-antifraud litellm dashboard
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         Invoke-Fortress @("bootstrap")
         Invoke-Fortress @("train")

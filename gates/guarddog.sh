@@ -3,6 +3,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+STRICT="${GATE_STRICT:-false}"
 
 FIXTURE="$ROOT/tests/fixtures/malicious/requirements-typosquat.txt"
 if [ -f "$FIXTURE" ] && [ "${GUARDDOG_SCAN_TARGET:-}" = "$FIXTURE" ]; then
@@ -14,6 +15,11 @@ fi
 
 if command -v guarddog >/dev/null 2>&1; then
   guarddog pypi scan -r requirements.txt && { echo "G3b PASS"; exit 0; }
+fi
+
+if [ "$STRICT" = "true" ]; then
+  echo "G3b FAIL: guarddog required in GATE_STRICT mode"
+  exit 1
 fi
 
 python3 - <<'PY'

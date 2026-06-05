@@ -2,7 +2,7 @@
 
 Безопасная MLOps-платформа для кейса «ИБАНК»: MLflow registry, Security Gates **G0–G15**, pre-train **DATA** gate, audit hash-chain, 3 ML-модели, Streamlit Security Center.
 
-Документация: [ТЗ.md](./ТЗ.md) · [ПЛАН_РЕАЛИЗАЦИИ.md](./ПЛАН_РЕАЛИЗАЦИИ.md) · [docs/RUN.md](./docs/RUN.md) · [docs/threat_model.md](./docs/threat_model.md)
+Документация: **[docs/GUIDE.md](./docs/GUIDE.md)** (полное руководство) · [RUN.md](./docs/RUN.md) · [ТЗ.md](./ТЗ.md) · [threat_model.md](./docs/threat_model.md)
 
 ## Quickstart (Docker only)
 
@@ -60,14 +60,13 @@ make all
 | `services/` | FastAPI + LiteLLM |
 | `docker-compose.yml` | postgres, minio, mlflow, APIs, dashboard |
 
-## Роли (Keycloak realm `mlsecops`)
+## Регистрация и вход
 
-| User | Role | Password (dev) |
-|------|------|----------------|
-| ds1 | ds | ds1pass |
-| mlsecops1 | mlsecops | mlsecops1pass |
+1. `.\fortress.ps1 up` — поднять стек (Keycloak + MLflow SSO).
+2. http://localhost:8502 → **Регистрация** → логин, email, пароль, **роль**.
+3. Тот же логин: **MLflow** http://localhost:5000 · **FORTRESS** :8502.
 
-**Plan B:** `ACTOR_ROLE=mlsecops` в promote, если Keycloak не поднят.
+Подробнее: [docs/GUIDE.md](./docs/GUIDE.md) §8.
 
 ## CI
 

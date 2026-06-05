@@ -30,7 +30,8 @@ chmod +x bin/fortress
 | `down` | остановить стек |
 | `bootstrap` | миграции БД + эксперименты MLflow |
 | `train` | обучить M1/M2/M3 |
-| `pipeline` | CI-пайплайн + attestation |
+| `pipeline` | CI-пайплайн + attestation (GATE_STRICT, все гейты) |
+| `verify` | `python scripts/ci/run_verification_suite.py` — 10+ проверок без Docker |
 | `demo` | полный демо-сценарий |
 | `test` | pytest smoke + attestation |
 | `gates` | security gates (`PROFILE=strict`) |
@@ -63,6 +64,10 @@ make up bootstrap demo    # то же через Makefile → docker
 ## Внутри сети Docker
 
 Скрипты в контейнере используют `postgres`, `mlflow`, `minio`, `api-scoring:8001` — не `localhost`.
+
+## Docker Hub
+
+Готовые образы: [docs/DOCKERHUB.md](./DOCKERHUB.md) — `rinakt/mlsecops-*` на https://hub.docker.com/u/rinakt
 
 ## Устаревшие скрипты
 

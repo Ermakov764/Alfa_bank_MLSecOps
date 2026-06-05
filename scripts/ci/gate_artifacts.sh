@@ -11,6 +11,8 @@ MODEL_KEY="${MODEL_KEY:-m1}"
 
 if [ "$MODEL_KEY" = "m2" ]; then
   ART_DIR="${ARTIFACT_DIR:-artifacts/models/m2_antifraud}"
+elif [ "$MODEL_KEY" = "m3" ]; then
+  ART_DIR="${ARTIFACT_DIR:-models/m3_nlp/artifact}"
 else
   ART_DIR="${ARTIFACT_DIR:-models/m1_scoring/artifact}"
 fi

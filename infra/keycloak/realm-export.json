@@ -1,40 +1,45 @@
 {
   "realm": "mlsecops",
   "enabled": true,
+  "registrationAllowed": false,
+  "registrationEmailAsUsername": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
   "roles": {
     "realm": [
-      {"name": "ds"},
-      {"name": "mlsecops"},
-      {"name": "de"},
-      {"name": "product"},
-      {"name": "ceo"}
+      {"name": "ds", "description": "Data Scientist"},
+      {"name": "mlsecops", "description": "MLSecOps"}
     ]
   },
-  "users": [
+  "clients": [
     {
-      "username": "ds1",
+      "clientId": "fortress-ui",
+      "name": "FORTRESS Security Center",
       "enabled": true,
-      "emailVerified": true,
-      "credentials": [{"type": "password", "value": "ds1pass", "temporary": false}],
-      "realmRoles": ["ds"]
+      "publicClient": true,
+      "directAccessGrantsEnabled": true,
+      "standardFlowEnabled": true,
+      "redirectUris": [
+        "http://localhost:8502/*",
+        "http://localhost:5000/*"
+      ],
+      "webOrigins": ["+"]
     },
     {
-      "username": "mlsecops1",
+      "clientId": "mlflow-oauth",
+      "name": "MLflow UI",
       "enabled": true,
-      "credentials": [{"type": "password", "value": "mlsecops1pass", "temporary": false}],
-      "realmRoles": ["mlsecops"]
-    },
-    {
-      "username": "de1",
-      "enabled": true,
-      "credentials": [{"type": "password", "value": "de1pass", "temporary": false}],
-      "realmRoles": ["de"]
-    },
-    {
-      "username": "ceo",
-      "enabled": true,
-      "credentials": [{"type": "password", "value": "ceopass", "temporary": false}],
-      "realmRoles": ["ceo"]
+      "publicClient": false,
+      "secret": "mlflow-oauth-dev-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": [
+        "http://localhost:5000/oauth2/callback",
+        "http://localhost:5000/*"
+      ],
+      "webOrigins": ["http://localhost:5000", "+"]
     }
-  ]
+  ],
+  "users": []
 }

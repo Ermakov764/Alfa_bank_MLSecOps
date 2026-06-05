@@ -34,9 +34,13 @@ def test_model_card_valid() -> None:
     assert card.tier == "HIGH"
 
 
-def test_g12_blocks_ds() -> None:
-    tags = {
-        "model_card": '{"name":"m","version":"1","tier":"HIGH","owner":"t","purpose":"ok","data_sources":"d"}',
+def _full_gate_tags() -> dict[str, str]:
+    return {
+        "model_card": (
+            '{"name":"vendor-model","version":"1","tier":"HIGH","owner":"t",'
+            '"purpose":"external vendor model","data_sources":"vendor","limitations":"none"}'
+        ),
+        "security.origin": "external",
         "security.scan_status": "passed",
         "security.G0": "passed",
         "security.G1": "passed",
@@ -51,16 +55,30 @@ def test_g12_blocks_ds() -> None:
         "security.signed": "true",
         "security.approved_by": "mlsecops1",
     }
-    ok, msg = check_promote_policy(tags, "credit-scoring-pd", actor_role="ds")
+
+
+def test_g12_blocks_ds_on_external() -> None:
+    tags = _full_gate_tags()
+    ok, msg = check_promote_policy(tags, "vendor-opus", actor_role="ds")
     assert not ok
-    assert "mlsecops" in msg
+    assert "mlsecops" in msg.lower() or "external" in msg.lower()
+
+
+def test_g12_allows_ds_on_ci_trained() -> None:
+    tags = _full_gate_tags()
+    tags["security.origin"] = "ci_trained"
+    tags["model_card"] = (
+        '{"name":"credit-scoring-pd","version":"1","tier":"HIGH","owner":"t",'
+        '"purpose":"ci trained scoring","data_sources":"internal","limitations":"none"}'
+    )
+    ok, msg = check_promote_policy(tags, "credit-scoring-pd", actor_role="ds")
+    assert ok, msg
 
 
 def test_data_gate_poison(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     csv = tmp_path / "bad.csv"
     csv.write_text("a,poison_col\n1,1\n")
-    sys.path.insert(0, str(ROOT))
-    from scripts import data_gate  # noqa: E402
+    from fortress import data_gate  # noqa: E402
 
     monkeypatch.setattr(data_gate, "log_finding", lambda *a, **k: None)
     monkeypatch.setattr(data_gate, "log_event", lambda *a, **k: None)

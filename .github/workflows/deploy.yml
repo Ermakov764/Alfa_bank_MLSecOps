@@ -13,30 +13,7 @@ on:
         default: "1"
 
 jobs:
-  pre-deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - run: pip install -r requirements.txt cryptography
-      - uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          name: fortress-attestation
-          path: artifacts/attestation/
-      - name: Generate attestation if missing (CI sign step artifact)
-        run: |
-          if [ ! -f artifacts/attestation/fortress-attestation.signed.json ]; then
-            python scripts/ci/sign_attestation.py --run-id deploy-${{ github.run_id }} --model "${{ inputs.model_name }}"
-          fi
-      - run: bash scripts/ci/deploy_precheck.sh
-        env:
-          ATTESTATION_PATH: artifacts/attestation/fortress-attestation.signed.json
-
-  promote:
-    needs: pre-deploy
+  deploy:
     runs-on: ubuntu-latest
     environment: production
     steps:
@@ -50,16 +27,19 @@ jobs:
         with:
           name: fortress-attestation
           path: artifacts/attestation/
-      - run: bash scripts/ci/deploy_precheck.sh
       - run: |
-          ACTOR_ROLE=mlsecops python scripts/promote_to_production.py \
-            --model "${{ inputs.model_name }}" \
-            --version "${{ inputs.model_version }}" \
-            --actor mlsecops1 --approve
-          ACTOR_ROLE=mlsecops python scripts/promote_to_production.py \
-            --model "${{ inputs.model_name }}" \
-            --version "${{ inputs.model_version }}" \
-            --actor mlsecops1
+          export DEPLOY_MODEL="${{ inputs.model_name }}"
+          export DEPLOY_VERSION="${{ inputs.model_version }}"
+          export FORTRESS_ATTESTATION_PATH=artifacts/attestation/fortress-attestation.signed.json
+          python scripts/ci/deploy_precheck.py
+      - run: |
+          ACTOR_ROLE=mlsecops python -c "
+          import sys; sys.path.insert(0, '.')
+          from fortress.deploy_runner import deploy_to_production
+          ok, msg = deploy_to_production('${{ inputs.model_name }}', '${{ inputs.model_version }}', 'mlsecops1', approve=True)
+          print(msg)
+          sys.exit(0 if ok else 1)
+          "
         env:
           FORTRESS_ATTESTATION_PATH: artifacts/attestation/fortress-attestation.signed.json
           MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI || 'http://localhost:5000' }}

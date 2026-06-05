@@ -42,7 +42,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: apt-get update && apt-get install -y git
-      - run: pip install -r requirements.txt cryptography pip-audit
+      - run: pip install -r requirements.txt -r requirements-llm.txt cryptography pip-audit
       - run: chmod +x gates/*.sh scripts/ci/gate_code.sh
       - run: bash scripts/ci/gate_code.sh
         env:
@@ -103,7 +103,7 @@ jobs:
         with:
           name: train-artifacts
           path: .
-      - run: pip install -r requirements.txt -r requirements-gates.txt cryptography httpx onnxruntime
+      - run: pip install -r requirements.txt -r requirements-llm.txt -r requirements-gates.txt cryptography httpx onnxruntime
       - run: python tests/fixtures/malicious/create_evil_pickle.py
       - run: |
           MODEL_KEY=m1 bash scripts/ci/gate_model.sh
@@ -144,4 +144,5 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker compose build fortress
-      - run: docker compose --profile tools run --rm fortress test
+      - run: pip install -r requirements.txt pytest psycopg2-binary
+      - run: pytest tests/test_smoke.py tests/test_attestation.py tests/test_gate_integrity.py -q

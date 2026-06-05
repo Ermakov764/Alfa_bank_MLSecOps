@@ -1,5 +1,5 @@
-# Platform
-mlflow>=2.14.0,<3
+# Platform (G3: mlflow>=3.10 closes known CVEs; see requirements-llm.txt for M3)
+mlflow>=3.10.0,<4
 psycopg2-binary>=2.9.9
 boto3>=1.34.0
 python-dotenv>=1.0.0
@@ -21,24 +21,18 @@ uvicorn[standard]>=0.30.0
 httpx>=0.27.0
 slowapi>=0.1.9
 
-# M3 / LLM (runtime guard implemented in services/litellm — optional lib)
-litellm>=1.40.0
-
-# LLM-Guard optional (G13 uses built-in middleware if unavailable)
-llm-guard>=0.3.14; python_version < "3.12"
-
 # Dashboard
 streamlit>=1.35.0
 
 # Gates helpers (CLI in gates/ + scripts/gates/)
 pip-audit>=2.7.0
 joblib>=1.4.0
-httpx>=0.27.0
 
 # See requirements-gates.txt for ART (G9)
+# See requirements-llm.txt for litellm (G3 second pass)
 
 # Attestation (Ed25519)
-cryptography>=42.0.0
+cryptography>=46.0.6
 
 # Tests
 pytest>=8.2.0

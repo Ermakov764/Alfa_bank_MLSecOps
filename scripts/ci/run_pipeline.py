@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cross-platform pipeline: DATA → code gates → train → artifacts → model → sign."""
+"""Strict pipeline: DATA → code gates → train → artifacts → model → verify → sign."""
 
 from __future__ import annotations
 
@@ -15,31 +15,83 @@ ROOT = Path(__file__).resolve().parents[2]
 def run_py(args: list[str], **env: str) -> None:
     cmd = [sys.executable] + args
     print("+", " ".join(cmd))
-    e = {**os.environ, "PYTHONPATH": str(ROOT), **env}
-    subprocess.run(cmd, cwd=ROOT, env=e, check=True)
+    e = {**os.environ, "PYTHONPATH": str(ROOT), "GATE_STRICT": "true", **env}
+    try:
+        subprocess.run(cmd, cwd=ROOT, env=e, check=True)
+    except subprocess.CalledProcessError as exc:
+        step = args[0] if args else "pipeline"
+        print(
+            f"\nPIPELINE FAIL на шаге {step} (exit {exc.returncode}).\n"
+            "Проверьте лог выше: уязвимость / компрометация / невалидные данные.\n"
+            "MLSecOps: вкладки Pipeline и Findings в Security Center.\n",
+            file=sys.stderr,
+        )
+        raise
+
+
+def _script_has_crlf(path: Path) -> bool:
+    if not path.exists():
+        return False
+    return b"\r\n" in path.read_bytes()[:8192]
+
+
+def _use_python_gates() -> bool:
+    """Use Python gate runners on Windows or when .sh files have CRLF (Docker volume on Windows)."""
+    if os.getenv("FORTRESS_PYTHON_GATES", "").lower() in ("1", "true", "yes"):
+        return True
+    if sys.platform == "win32":
+        return True
+    import shutil
+    if shutil.which("bash") is None:
+        return True
+    for script in (
+        "scripts/ci/gate_code.sh",
+        "scripts/ci/gate_artifacts.sh",
+        "scripts/ci/gate_model.sh",
+    ):
+        if _script_has_crlf(ROOT / script):
+            print(f"NOTE: {script} has CRLF — using Python gates", file=sys.stderr)
+            return True
+    return False
 
 
 def run_sh(script: str, **env: str) -> None:
     path = ROOT / script
     print("+", script)
-    e = {**os.environ, "PYTHONPATH": str(ROOT), **env}
-    if sys.platform == "win32":
-        subprocess.run(
-            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(path)],
-            cwd=ROOT,
-            env=e,
-            check=True,
-        )
-    else:
-        subprocess.run(["bash", str(path)], cwd=ROOT, env=e, check=True)
+    e = {**os.environ, "PYTHONPATH": str(ROOT), "GATE_STRICT": "true", **env}
+    subprocess.run(["bash", str(path)], cwd=ROOT, env=e, check=True)
+
+
+def report(
+    run_id: str,
+    element: str,
+    gate: str,
+    status: str,
+    corr: str,
+    message: str = "",
+) -> None:
+    args = [
+        "scripts/ci/report_gate.py",
+        "--run-id", run_id,
+        "--element", element,
+        "--gate", gate,
+        "--status", status,
+        "--correlation-id", corr,
+    ]
+    if message:
+        args.extend(["--message", message])
+    run_py(args)
 
 
 def main() -> int:
+    sys.path.insert(0, str(ROOT))
+    from fortress.gate_verifier import build_attestation_elements, verify_pipeline_run  # noqa: E402
+
     run_id = os.getenv("RUN_ID", f"local-{uuid.uuid4().hex[:8]}")
     corr = os.getenv("CORRELATION_ID", str(uuid.uuid4()))
     mlflow_uri = os.getenv(
         "MLFLOW_TRACKING_URI",
-        f"sqlite:///{ROOT / 'artifacts' / 'mlflow.db'}",
+        f"sqlite:///{ROOT / 'artifacts' / 'mlflow-local.db'}",
     )
     env = {
         "RUN_ID": run_id,
@@ -47,59 +99,73 @@ def main() -> int:
         "ARTIFACTS_DIR": str(ROOT / "artifacts"),
         "MLFLOW_TRACKING_URI": mlflow_uri,
         "MLFLOW_ALLOW_FILE_STORE": "true",
+        "GATE_STRICT": "true",
     }
+    model_key = os.getenv("MODEL_KEY", "all")
 
-    # Element 1: DATA
+    # --- DATA + registry ---
+    dataset_csv = ROOT / "data" / "datasets" / "train_clean.csv"
+    actor = os.getenv("PIPELINE_ACTOR", "ci")
     run_py(
-        ["scripts/data_gate.py", "data/datasets/train_clean.csv",
-         "--expected-cols", "amount,age,target", "--actor", "ci"],
+        ["scripts/ingest_dataset.py", str(dataset_csv),
+         "--name", "train_clean", "--version", "v1",
+         "--expected-cols", "amount,age,target", "--actor", actor],
         **env,
     )
-    run_py(
-        ["scripts/ci/report_gate.py", "--run-id", run_id, "--element", "data",
-         "--gate", "DATA", "--status", "passed", "--correlation-id", corr],
-        **env,
-    )
+    report(run_id, "data", "DATA", "passed", corr)
 
-    # Element 2: lightweight code check (full G0–G3 in CI gate_code.sh / workflow)
-    run_py(["-c", (
-        "from pathlib import Path; import re; "
-        "bad=[p for p in Path('services').rglob('*.py') "
-        "if re.search(r'pickle\\.loads', p.read_text(errors='ignore'))]; "
-        "assert not bad, bad"
-    )], **env)
-    run_py(
-        ["scripts/ci/report_gate.py", "--run-id", run_id, "--element", "code",
-         "--gate", "CODE", "--status", "passed", "--correlation-id", corr],
-        **env,
-    )
+    # --- CODE (full gates, strict) ---
+    if _use_python_gates():
+        run_py(["scripts/ci/gate_code.py"], **env)
+        for g in ("G0", "G1", "G3", "G3b"):
+            report(run_id, "code", g, "passed", corr)
+    else:
+        run_sh("scripts/ci/gate_code.sh", **env)
 
-    # Train
+    # --- TRAIN ---
     for t in ("models/m1_scoring/train.py", "models/m2_antifraud/train.py", "models/m3_nlp/train.py"):
         run_py([t], **env)
+    report(run_id, "train", "", "passed", corr, message="train complete")
 
-    model_key = os.getenv("MODEL_KEY", "all")
     keys = ["m1", "m2", "m3"] if model_key == "all" else [model_key]
     for mk in keys:
-        os.environ["MODEL_KEY"] = mk
-        art = ROOT / "models/m1_scoring/artifact"
-        if mk == "m2":
-            art = ROOT / "artifacts/models/m2_antifraud"
-        if mk == "m3":
-            art = ROOT / "models/m3_nlp/artifact"
-        run_py(["scripts/check_format_policy.py", str(art)], **env)
-        if mk in ("m1", "m2"):
-            onnx = art / "onnx" / "model.onnx"
-            if onnx.exists():
-                run_py(["scripts/gates/g7_sign_manifest.py", str(onnx)], **env)
-                run_py(["scripts/gates/g8_validate.py", mk], **env)
-                run_py(["scripts/gates/g9_art.py", mk], **env)
+        mk_env = {**env, "MODEL_KEY": mk}
+        if _use_python_gates():
+            run_py(["scripts/ci/gate_artifacts_py.py"], **mk_env)
+            run_py(["scripts/ci/gate_model_py.py"], **mk_env)
+        else:
+            run_sh("scripts/ci/gate_artifacts.sh", **mk_env)
+            run_sh("scripts/ci/gate_model.sh", **mk_env)
+
+    # --- Verify artifacts on disk (mandatory) ---
+    from fortress.gate_verifier import verify_onnx_artifacts
+
+    for mk in keys:
+        aok, amsg = verify_onnx_artifacts(mk)
+        if not aok:
+            print(f"ARTIFACT FAIL {mk}: {amsg}", file=sys.stderr)
+            sys.exit(1)
+        print(f"VERIFY {mk}: {amsg}")
+
+    ok, errs = verify_pipeline_run(run_id, model_key, require_db=False)
+    for e in errs:
+        print(f"WARN pipeline_runs: {e}", file=sys.stderr)
 
     run_py(
-        ["scripts/ci/sign_attestation.py", "--run-id", run_id, "--model", "all", "--model-key", "all"],
+        ["scripts/ci/sign_attestation.py", "--run-id", run_id,
+         "--model", "all" if model_key == "all" else os.getenv("MODEL_NAME", "credit-scoring-pd"),
+         "--model-key", model_key,
+         "--correlation-id", corr,
+         "--strict"],
         **env,
     )
-    print("=== Pipeline OK ===")
+
+    # Auto-sync attestation → MLflow (source of truth for all developers)
+    run_py(
+        ["scripts/ci/sync_pipeline_to_mlflow.py", "--model-key", model_key, "--actor", "ci"],
+        **env,
+    )
+    print("=== Pipeline OK (strict) — attestation в MLflow ===")
     return 0
 
 
