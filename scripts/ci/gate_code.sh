@@ -11,6 +11,29 @@ OUT="${ARTIFACTS_DIR:-$ROOT/artifacts}/gates"
 mkdir -p "$OUT"
 chmod +x gates/*.sh
 
+_install_gitleaks() {
+  if command -v gitleaks >/dev/null 2>&1; then
+    return 0
+  fi
+  # CI runner does not have gitleaks by default; fallback scanner is too naive.
+  # Install a pinned binary so G0 uses real gitleaks rules.
+  if ! command -v curl >/dev/null 2>&1; then
+    echo "gitleaks install skipped: curl not found" >&2
+    return 1
+  fi
+  local ver="${GITLEAKS_VERSION:-8.18.4}"
+  local url="https://github.com/gitleaks/gitleaks/releases/download/v${ver}/gitleaks_${ver}_linux_x64.tar.gz"
+  echo "Installing gitleaks v${ver}..."
+  tmpdir="$(mktemp -d)"
+  curl -fsSL "$url" -o "$tmpdir/gitleaks.tgz"
+  tar -xzf "$tmpdir/gitleaks.tgz" -C "$tmpdir"
+  install -m 0755 "$tmpdir/gitleaks" /usr/local/bin/gitleaks
+  rm -rf "$tmpdir"
+  gitleaks version || true
+}
+
+_install_gitleaks || true
+
 run_one() {
   local gate="$1" cmd="$2"
   "$PYTHON" scripts/ci/report_gate.py --run-id "$RUN_ID" --element code \

@@ -41,7 +41,7 @@ jobs:
       image: python:3.11-slim
     steps:
       - uses: actions/checkout@v4
-      - run: apt-get update && apt-get install -y git
+      - run: apt-get update && apt-get install -y git curl ca-certificates
       - run: pip install -r requirements.txt -r requirements-llm.txt cryptography pip-audit
       - run: chmod +x gates/*.sh scripts/ci/gate_code.sh
       - run: bash scripts/ci/gate_code.sh
