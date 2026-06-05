@@ -12,172 +12,53 @@ on:
         default: m1
 
 env:
-  PYTHON_VERSION: "3.11"
   RUN_ID: ${{ github.run_id }}
   CORRELATION_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+  # Fast, deterministic defaults for CI environment
+  POSTGRES_USER: mlsecops
+  POSTGRES_PASSWORD: changeme
+  POSTGRES_DB: mlsecops
+  MINIO_ROOT_USER: minio
+  MINIO_ROOT_PASSWORD: changeme
+  MLFLOW_OAUTH_SECRET: mlflow-oauth-dev-secret
+  OAUTH2_PROXY_COOKIE_SECRET: YXNkZmFzZGZhc2RmYXNkZmFzZGZhc2Rm
+  IMAGE_TAG: ci
 
 jobs:
-  gate-data:
+  compose-pipeline:
     runs-on: ubuntu-latest
-    container:
-      image: python:3.11-slim
     steps:
       - uses: actions/checkout@v4
-      - run: pip install -r requirements.txt cryptography psycopg2-binary pandas
-      - run: chmod +x scripts/ci/gate_data.sh
-      - run: bash scripts/ci/gate_data.sh
-        env:
-          RUN_ID: ${{ env.RUN_ID }}
-          CORRELATION_ID: ${{ env.CORRELATION_ID }}
-      - uses: actions/upload-artifact@v4
-        with:
-          name: gate-data-report
-          path: artifacts/gates/
-
-  gate-code:
-    needs: gate-data
-    runs-on: ubuntu-latest
-    container:
-      image: python:3.11-slim
-    steps:
-      - uses: actions/checkout@v4
-      - run: apt-get update && apt-get install -y git curl ca-certificates
-      - run: pip install -r requirements.txt -r requirements-llm.txt cryptography pip-audit
-      - run: chmod +x gates/*.sh scripts/ci/gate_code.sh
-      - run: bash scripts/ci/gate_code.sh
-        env:
-          RUN_ID: ${{ env.RUN_ID }}
-          CORRELATION_ID: ${{ env.CORRELATION_ID }}
-      - uses: actions/upload-artifact@v4
-        with:
-          name: gate-code-report
-          path: artifacts/gates/
-
-  train:
-    needs: gate-code
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: mlsecops
-          POSTGRES_PASSWORD: changeme
-          POSTGRES_DB: mlsecops
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U mlsecops -d mlsecops"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 12
-    env:
-      # In GitHub Actions (job runs on host, not in a container),
-      # service containers are reachable via localhost + mapped port.
-      POSTGRES_HOST: 127.0.0.1
-      POSTGRES_USER: mlsecops
-      POSTGRES_PASSWORD: changeme
-      POSTGRES_DB: mlsecops
-      DATABASE_URL: postgresql://mlsecops:changeme@127.0.0.1:5432/mlsecops
-      MLFLOW_BACKEND_STORE_URI: postgresql://mlsecops:changeme@127.0.0.1:5432/mlsecops
-      MLFLOW_DEFAULT_ARTIFACT_ROOT: file:///tmp/mlflow-artifacts
-      MLFLOW_TRACKING_URI: http://127.0.0.1:5000
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install deps and Postgres client
+      - name: Prepare .env for compose
         run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client curl
-          pip install -r requirements.txt psycopg2-binary
-      - name: Start Postgres + MLflow (prod-like)
+          cp .env.example .env
+          # CI overrides come from workflow env section above.
+      - name: Build images (cache-friendly)
         run: |
-          chmod +x scripts/ci/start_ml_stack.sh
-          bash scripts/ci/start_ml_stack.sh
-      - name: Train models
+          docker compose build mlflow api-scoring api-antifraud litellm dashboard fortress
+      - name: Start prod-like stack (S3 + MLflow + UI)
         run: |
-          python models/m1_scoring/train.py
-          python models/m2_antifraud/train.py
-          python models/m3_nlp/train.py
-        env:
-          MLFLOW_TRACKING_URI: http://127.0.0.1:5000
-      - uses: actions/upload-artifact@v4
-        with:
-          name: train-artifacts
-          path: |
-            models/m1_scoring/artifact/
-            artifacts/models/m2_antifraud/
-            models/m3_nlp/artifact/
-
-  gate-artifacts:
-    needs: train
-    runs-on: ubuntu-latest
-    container:
-      image: python:3.11-slim
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: train-artifacts
-          path: .
-      - run: pip install -r requirements.txt cryptography onnxruntime
-      - run: |
-          MODEL_KEY=m1 bash scripts/ci/gate_artifacts.sh
-          MODEL_KEY=m2 ARTIFACT_DIR=artifacts/models/m2_antifraud bash scripts/ci/gate_artifacts.sh
-        env:
-          RUN_ID: ${{ env.RUN_ID }}
-          CORRELATION_ID: ${{ env.CORRELATION_ID }}
-
-  gate-model:
-    needs: gate-artifacts
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: train-artifacts
-          path: .
-      - run: pip install -r requirements.txt -r requirements-llm.txt -r requirements-gates.txt cryptography httpx onnxruntime
-      - run: python tests/fixtures/malicious/create_evil_pickle.py
-      - run: |
-          MODEL_KEY=m1 bash scripts/ci/gate_model.sh
-          MODEL_KEY=m2 bash scripts/ci/gate_model.sh
-        env:
-          RUN_ID: ${{ env.RUN_ID }}
-          CORRELATION_ID: ${{ env.CORRELATION_ID }}
-      - name: G5 evil must fail
+          docker compose up -d postgres minio minio-init keycloak mlflow oauth2-proxy-mlflow api-scoring api-antifraud litellm dashboard
+      - name: Run CI pipeline inside fortress container
         run: |
-          chmod +x gates/modelaudit.sh
-          bash gates/modelaudit.sh tests/fixtures/malicious/evil_model.pkl && exit 1 || echo "G5 correctly blocked evil pickle"
-
-  sign-attestation:
-    needs: gate-model
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+          docker compose --profile tools run --rm \
+            -e RUN_ID="${{ env.RUN_ID }}" \
+            -e CORRELATION_ID="${{ env.CORRELATION_ID }}" \
+            fortress pipeline
+      - name: Run unit tests inside fortress container
+        run: |
+          docker compose --profile tools run --rm fortress test
+      - name: Upload artifacts (gates + attestation)
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          name: train-artifacts
-          path: .
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - run: pip install -r requirements.txt cryptography
-      - run: |
-          python scripts/ci/sign_attestation.py --run-id "${{ env.RUN_ID }}" --model all --model-key all
-        env:
-          CORRELATION_ID: ${{ env.CORRELATION_ID }}
-      - uses: actions/upload-artifact@v4
-        with:
-          name: fortress-attestation
-          path: artifacts/attestation/
-
-  unit-tests:
-    needs: sign-attestation
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: docker compose build fortress
-      - run: pip install -r requirements.txt pytest psycopg2-binary
-      - run: pytest tests/test_smoke.py tests/test_attestation.py tests/test_gate_integrity.py -q
+          name: fortress-artifacts
+          path: artifacts/
+      - name: Dump compose status
+        if: always()
+        run: |
+          docker compose ps
+          docker compose logs --no-color --tail=200 mlflow oauth2-proxy-mlflow dashboard litellm || true
+      - name: Teardown
+        if: always()
+        run: docker compose down -v
