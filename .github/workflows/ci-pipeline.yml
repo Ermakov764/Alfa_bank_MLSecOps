@@ -22,11 +22,12 @@ env:
   MLFLOW_OAUTH_SECRET: mlflow-oauth-dev-secret
   OAUTH2_PROXY_COOKIE_SECRET: YXNkZmFzZGZhc2RmYXNkZmFzZGZhc2Rm
   IMAGE_TAG: ci
-  # Prod-like stack (S3 + MLflow + APIs + Streamlit UI)
+  # Prod-like stack (S3 + MLflow + APIs + Streamlit UI + Jupyter)
   COMPOSE_STACK: >-
-    postgres minio minio-init keycloak mlflow oauth2-proxy-mlflow
-    api-scoring api-antifraud litellm dashboard
-  COMPOSE_BUILD: keycloak mlflow api-scoring api-antifraud litellm dashboard fortress
+    postgres minio minio-init keycloak keycloak-bootstrap mlflow
+    oauth2-proxy-mlflow api-scoring api-antifraud litellm dashboard jupyter
+  COMPOSE_BUILD: >-
+    keycloak mlflow dashboard jupyter api-scoring api-antifraud litellm fortress
 
 jobs:
   gate-data:
