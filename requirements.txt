@@ -28,6 +28,13 @@ streamlit>=1.35.0
 pip-audit>=2.7.0
 joblib>=1.4.0
 
+# DATA gate PII (Presidio) + G15 drift (Evidently)
+presidio-analyzer>=2.2.354
+presidio-anonymizer>=2.2.354
+spacy>=3.7.0,<4
+evidently>=0.4.33,<0.5
+model-signing>=0.0.5
+
 # See requirements-gates.txt for ART (G9)
 # See requirements-llm.txt for litellm (G3 second pass)
 

@@ -1,0 +1,22 @@
+%% Сравнение рынка (не из architecture — продуктовый слайд)
+flowchart TB
+  subgraph platforms [Платформы MLSecOps]
+    HL[HiddenLayer]
+    PA[Protect AI]
+    SM[SageMaker / Vertex]
+  end
+
+  subgraph tools [Разрозненные инструменты]
+    GL[gitleaks]
+    TV[trivy]
+    MS[modelscan]
+    MF[MLflow]
+  end
+
+  subgraph fortress [FORTRESS]
+    F["Интеграция + G0-G15 + audit + Human Approve"]
+  end
+
+  platforms -->|vendor lock-in / cloud| P1[Дорого]
+  tools -->|нет lineage / нет policy prod| P2[Не связаны]
+  fortress --> P3[Self-hosted bank CI to prod]

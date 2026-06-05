@@ -1,0 +1,36 @@
+%% docs/architecture.md §3 — зоны доверия и поток gates
+flowchart LR
+  subgraph Z1 [DEV]
+    NB[Notebook / IDE]
+    REPO[Git]
+  end
+
+  subgraph Z2 [CI]
+    PR[PR / push]
+    GF["G0 G1 G3 G3b"]
+  end
+
+  subgraph Z3 [REGISTRY]
+    DATA[DATA gate]
+    REG[MLflow + MinIO]
+    GR["G5 G6 G7 G8 G9 G10"]
+    G12[G12 promote policy]
+    AUD[(Postgres audit)]
+  end
+
+  subgraph Z4 [PROD runtime]
+    API[FastAPI / LiteLLM]
+    RT["G13 G14"]
+  end
+
+  NB --> REPO
+  REPO --> PR
+  PR --> GF
+  GF -->|pass| DATA
+  DATA -->|available dataset| REG
+  REG --> GR
+  GR --> G12
+  G12 -->|Production only| API
+  API --> RT
+
+  GF & DATA & GR & G12 & RT -.->|log + findings| AUD

@@ -22,6 +22,11 @@ _GATE_HELP: dict[str, tuple[str, str, str]] = {
         "Обнаружен опасный паттерн (например pickle.loads в сервисах).",
         "Замените pickle на безопасную сериализацию (ONNX, JSON).",
     ),
+    "G2": (
+        "SAST Python",
+        "Bandit нашёл уязвимый паттерн в коде приложения.",
+        "Исправьте findings в отчёте bandit и перезапустите pipeline.",
+    ),
     "G3": (
         "CVE в зависимостях",
         "pip-audit нашёл уязвимые версии пакетов в requirements.",
@@ -31,6 +36,11 @@ _GATE_HELP: dict[str, tuple[str, str, str]] = {
         "Typosquat пакетов",
         "В requirements подозрительное имя пакета (подделка PyPI).",
         "Проверьте requirements.txt на опечатки в именах пакетов.",
+    ),
+    "G4": (
+        "Политика зависимостей",
+        "Пакет без pin версии или недоверенный VCS-источник.",
+        "Зафиксируйте версии (>=x,<y) и используйте только trusted PyPI/GitHub.",
     ),
     "G5": (
         "Скан модели",
@@ -71,6 +81,11 @@ _GATE_HELP: dict[str, tuple[str, str, str]] = {
         "Политика Production",
         "Не все обязательные теги security.* в MLflow или нет attestation.",
         "Дождитесь успешного pipeline и sync в MLflow.",
+    ),
+    "G15": (
+        "Drift / деградация в проде",
+        "Evidently PSI или падение accuracy относительно baseline.",
+        "Проверьте входной трафик, переобучите модель, откатите версию.",
     ),
 }
 

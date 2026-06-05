@@ -15,6 +15,7 @@ from pydantic import BaseModel
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+from fortress.artifact_integrity import verify_manifest  # noqa: E402
 from fortress.audit import log_event  # noqa: E402
 
 MODEL_PATH = Path(
@@ -83,6 +84,10 @@ def _load_intent_model():
     if _INTENT_PIPE is not None:
         return _INTENT_PIPE
     if MODEL_PATH.exists():
+        ok, msg = verify_manifest(MODEL_PATH)
+        if not ok:
+            log_event("litellm", "api.integrity_failed", status="failed", details={"error": msg})
+            return None
         import joblib
         _INTENT_PIPE = joblib.load(MODEL_PATH)
     return _INTENT_PIPE
@@ -90,18 +95,13 @@ def _load_intent_model():
 
 def _infer(prompt: str) -> str:
     pipe = _load_intent_model()
-    if pipe is not None:
-        intent = str(pipe.predict([prompt])[0])
-        return _INTENT_LABELS.get(
-            intent,
-            f"Классифицировано как «{intent}». Оператор поможет уточнить детали.",
-        )
-    p = prompt.lower()
-    if "balance" in p or "баланс" in p or "счет" in p:
-        return _INTENT_LABELS["balance"]
-    if "card" in p or "карт" in p:
-        return _INTENT_LABELS["card_block"]
-    return "Спасибо за обращение. Уточните вопрос — подскажем следующий шаг."
+    if pipe is None:
+        raise HTTPException(503, "M3 model not loaded — train and deploy first")
+    intent = str(pipe.predict([prompt])[0])
+    return _INTENT_LABELS.get(
+        intent,
+        f"Классифицировано как «{intent}». Оператор поможет уточнить детали.",
+    )
 
 
 @app.get("/health")

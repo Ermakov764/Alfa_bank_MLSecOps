@@ -9,7 +9,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 
-REQUIRED_CODE = ("G0", "G1", "G3", "G3b")
+REQUIRED_CODE = ("G0", "G1", "G2", "G3", "G3b", "G4")
 REQUIRED_DATA = ("DATA",)
 
 

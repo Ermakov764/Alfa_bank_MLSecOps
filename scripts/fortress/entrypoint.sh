@@ -65,6 +65,7 @@ EOF
     done
     bash /app/gates/modelaudit.sh /app/tests/fixtures/malicious/evil_model.pkl && exit 1 \
       || echo "G5 correctly blocked evil pickle"
+    exec bash /app/scripts/ci/gate_monitor.sh
     ;;
   ci-sign)
     exec python /app/scripts/ci/sign_attestation.py \

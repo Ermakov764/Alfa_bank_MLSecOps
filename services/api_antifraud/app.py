@@ -16,7 +16,9 @@ from pydantic import BaseModel, Field
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+from fortress.artifact_integrity import verify_manifest  # noqa: E402
 from fortress.audit import log_event  # noqa: E402
+from fortress.inference_telemetry import record as record_telemetry  # noqa: E402
 from fortress.mlflow_client import get_production_version, get_version_tags  # noqa: E402
 
 app = FastAPI(title="M2 Antifraud API", version="1.0.0")
@@ -62,6 +64,10 @@ def _load() -> None:
     if not path.exists():
         path = ROOT / "models/m2_antifraud/artifact/onnx/model.onnx"
     if path.exists():
+        ok, msg = verify_manifest(path)
+        if not ok:
+            log_event("api-antifraud", "api.integrity_failed", status="failed", details={"error": msg})
+            return
         _session = ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
         _model_version = version
 
@@ -93,4 +99,15 @@ def predict(req: TxRequest, request: Request) -> dict:
 
     log_event("api-antifraud", "api.inference", model_name=MODEL_NAME,
               model_version=_model_version or "?", status="success")
+    record_telemetry(
+        "m2",
+        features={
+            "amount": req.amount,
+            "age": req.age,
+            "velocity": req.velocity,
+            "merchant_risk": req.merchant_risk,
+        },
+        score=fraud_prob,
+        service="api-antifraud",
+    )
     return {"fraud_probability": round(fraud_prob, 4), "block": fraud_prob > 0.6}

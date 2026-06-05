@@ -6,8 +6,18 @@ TARGET="${1:-$ROOT/tests/fixtures/malicious/evil_model.pkl}"
 OUT="${ARTIFACTS_DIR:-$ROOT/artifacts}/gates"
 mkdir -p "$OUT"
 
+STRICT="${GATE_STRICT:-false}"
+
+if command -v modelscan >/dev/null 2>&1; then
+  modelscan -p "$TARGET" && { echo "G5 PASS (modelscan)"; exit 0; } || exit 1
+fi
 if command -v modelaudit >/dev/null 2>&1; then
-  modelaudit scan "$TARGET" -o "$OUT/modelaudit.json" && { echo "G5 PASS"; exit 0; } || exit 1
+  modelaudit scan "$TARGET" -o "$OUT/modelaudit.json" && { echo "G5 PASS (modelaudit)"; exit 0; } || exit 1
+fi
+
+if [ "$STRICT" = "true" ]; then
+  echo "G5 FAIL: modelscan/modelaudit required in GATE_STRICT mode"
+  exit 1
 fi
 
 python3 - "$TARGET" <<'PY'

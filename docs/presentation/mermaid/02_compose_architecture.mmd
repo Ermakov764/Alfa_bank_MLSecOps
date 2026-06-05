@@ -1,0 +1,57 @@
+%% docs/architecture.md §2 — Docker Compose + CI
+flowchart TB
+  subgraph host [Ноутбук / demo host]
+    subgraph cli [bin/fortress / fortress.ps1]
+      FORT[fortress container profile tools]
+      GHA[GitHub Actions ci-pipeline.yml]
+    end
+
+    subgraph compose [docker compose]
+      direction TB
+
+      subgraph auth [Identity]
+        KC[Keycloak :8080]
+        OAUTH[oauth2-proxy-mlflow :5000]
+      end
+
+      subgraph data_plane [Data plane]
+        PG[(PostgreSQL :5432)]
+        MINIO[MinIO S3 :9000]
+      end
+
+      subgraph ml [ML platform]
+        MLF[mlflow internal]
+      end
+
+      subgraph inference [Production inference]
+        API1[api-scoring :8001]
+        API2[api-antifraud :8002]
+        LIT["litellm :4000 G13 G14"]
+      end
+
+      UI[Streamlit Security Center :8502]
+    end
+
+    GIT[Git repo]
+  end
+
+  GIT --> FORT
+  FORT -->|pipeline gates train| MLF
+  FORT -->|audit findings| PG
+  GHA -.->|gates train sign| PG
+
+  DS_USER[DS / MLSecOps browser] --> KC
+  KC --> OAUTH
+  OAUTH --> MLF
+  DS_USER --> UI
+
+  MLF --> PG
+  MLF --> MINIO
+  UI --> PG
+  UI --> MLF
+
+  API1 & API2 --> MLF
+  API1 & API2 --> PG
+  LIT --> PG
+
+  API1 & API2 & LIT -->|только Production| MINIO

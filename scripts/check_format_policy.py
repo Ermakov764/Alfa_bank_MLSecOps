@@ -14,7 +14,7 @@ sys.path.insert(0, str(ROOT))
 from fortress.audit import log_event, log_finding  # noqa: E402
 
 ALLOWED_SUFFIXES = {".onnx", ".cbm", ".json", ".safetensors", ".txt", ".yaml", ".yml"}
-FORBIDDEN = {".pkl", ".pickle"}
+FORBIDDEN = {".pkl", ".pickle", ".pt", ".pth", ".ckpt"}
 # joblib allowed only for M3 NLP classifier artifact path
 JOBLIB_ALLOWED_PREFIXES = ("models/m3_nlp", "m3_nlp")
 

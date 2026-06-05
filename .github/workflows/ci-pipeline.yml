@@ -133,6 +133,10 @@ jobs:
             -e RUN_ID="${{ env.RUN_ID }}" \
             -e CORRELATION_ID="${{ env.CORRELATION_ID }}" \
             fortress ci-gate-artifacts
+      - name: G11 Trivy container scan (CRITICAL CVE)
+        run: |
+          chmod +x gates/g11_trivy.sh
+          IMAGE_TAG=${{ env.IMAGE_TAG }} DOCKERHUB_USER=rinakt bash gates/g11_trivy.sh
       - uses: actions/upload-artifact@v4
         with:
           name: fortress-artifacts
@@ -174,6 +178,8 @@ jobs:
             models/m1_scoring/artifact/
             artifacts/models/m2_antifraud/
             models/m3_nlp/artifact/
+            artifacts/monitoring/
+            artifacts/signing/
       - name: Teardown stack
         if: always()
         run: docker compose down -v
@@ -213,4 +219,7 @@ jobs:
           path: artifacts/attestation/
       - run: docker compose build fortress
       - name: Pytest (fortress container)
-        run: docker compose --profile tools run --rm --no-deps fortress test
+        run: |
+          docker compose --profile tools run --rm --no-deps fortress test
+          docker compose --profile tools run --rm --no-deps fortress \
+            test tests/test_pii_scanner.py tests/test_g15_drift.py tests/test_deps_policy.py -q

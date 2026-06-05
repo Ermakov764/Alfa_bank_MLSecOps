@@ -107,6 +107,19 @@ def _run_gate(name: str, script: Path) -> None:
     elif name == "G3b":
         _strict_typosquat_scan()
         print("G3b PASS (strict python typosquat)")
+    elif name == "G2":
+        r = subprocess.run(
+            ["bandit", "-r", "fortress", "services", "-ll", "-q"],
+            cwd=ROOT,
+        )
+        if r.returncode != 0:
+            raise RuntimeError("G2 strict: bandit failed")
+        print("G2 PASS (strict bandit)")
+    elif name == "G4":
+        r = subprocess.run([sys.executable, str(ROOT / "scripts/check_deps_policy.py")], cwd=ROOT)
+        if r.returncode != 0:
+            raise RuntimeError("G4 strict: deps policy failed")
+        print("G4 PASS (strict deps policy)")
     else:
         raise RuntimeError(f"{name}: no strict fallback")
     print(f"{name} OK")
@@ -117,6 +130,7 @@ def main() -> int:
     gates = [
         ("G0", ROOT / "gates/gitleaks.sh"),
         ("G1", ROOT / "gates/semgrep.sh"),
+        ("G2", ROOT / "gates/g2_bandit.sh"),
         ("G3", ROOT / "gates/pip_audit.sh"),
         ("G3b", ROOT / "gates/guarddog.sh"),
     ]

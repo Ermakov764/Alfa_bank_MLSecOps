@@ -1,0 +1,31 @@
+%% docs/architecture_full.md §10 + docs/ci.md
+flowchart LR
+  subgraph dev [Разработчик]
+    COMMIT[git commit push]
+    PR[Pull Request]
+  end
+
+  subgraph gha [GitHub Actions ci-pipeline.yml]
+    JD[gate-data DATA]
+    JC["gate-code G0 G1 G3 G3b"]
+    JT[train M1 M2 M3]
+    JA["gate-artifacts G6 G7"]
+    JM["gate-model G5 G8 G9 G10"]
+    JS[sign attestation Ed25519]
+    ART[upload artifacts]
+  end
+
+  subgraph local [Локально Docker]
+    PIPE[fortress pipeline]
+    PROM[promote_to_production.py]
+  end
+
+  COMMIT --> PR
+  PR --> JD --> JC --> JT --> JA --> JM --> JS
+  JS --> ART
+  JD & JC & JA & JM -->|fail| BLOCK[Merge blocked]
+
+  PR -->|merge main| PIPE
+  PROM -->|только mlsecops| MLF[MLflow Production]
+
+  BLOCK -.->|не автоматом| MLF

@@ -68,7 +68,9 @@ def log_event(
     """Append audit event with hash-chain."""
     if os.getenv("AUDIT_DISABLED", "").lower() in ("1", "true", "yes"):
         return 0
-    details = details or {}
+    from fortress.audit_dlp import sanitize_details
+
+    details = sanitize_details(details or {})
     corr = correlation_id or str(uuid.uuid4())
     payload = {
         "actor": actor,

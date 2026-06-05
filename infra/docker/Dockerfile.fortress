@@ -10,7 +10,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && GITLEAKS_VERSION=8.18.4 \
     && curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
       | tar -xz -C /usr/local/bin gitleaks \
-    && gitleaks version
+    && gitleaks version \
+    && COSIGN_VERSION=2.4.1 \
+    && curl -fsSL "https://github.com/sigstore/cosign/releases/download/v${COSIGN_VERSION}/cosign-linux-amd64" \
+      -o /usr/local/bin/cosign \
+    && chmod +x /usr/local/bin/cosign \
+    && cosign version
 
 WORKDIR /app
 
@@ -20,12 +25,16 @@ RUN pip install --no-cache-dir \
     -r requirements-llm.txt \
     -r requirements-gates.txt \
     pip-audit \
-    httpx
+    httpx \
+    && pip install --no-cache-dir \
+      https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl \
+    && python -c "import semgrep, bandit, presidio_analyzer, evidently; print('gate tools OK')"
 
 COPY . .
 
 RUN find /app/gates /app/scripts/ci /app/scripts/fortress -name '*.sh' -exec sed -i 's/\r$//' {} + 2>/dev/null || true \
     && chmod +x /app/gates/*.sh /app/scripts/ci/*.sh /app/scripts/fortress/*.sh 2>/dev/null || true \
+    && chmod +x /app/scripts/ci/gate_monitor.sh 2>/dev/null || true \
     && chmod +x /app/scripts/fortress/entrypoint.sh
 
 ENV PYTHONPATH=/app \

@@ -1,0 +1,17 @@
+{
+  "theme": "base",
+  "themeVariables": {
+    "primaryColor": "#EF3124",
+    "primaryTextColor": "#ffffff",
+    "primaryBorderColor": "#C62828",
+    "secondaryColor": "#F5F5F5",
+    "tertiaryColor": "#ffffff",
+    "lineColor": "#333333",
+    "fontFamily": "arial, sans-serif",
+    "fontSize": "14px"
+  },
+  "flowchart": {
+    "htmlLabels": true,
+    "curve": "basis"
+  }
+}

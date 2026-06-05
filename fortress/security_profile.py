@@ -16,7 +16,10 @@ def required_gates_for_model(model_name: str, tags: dict[str, str] | None = None
     tags = tags or {}
     if model_origin(tags, model_name) == ORIGIN_EXTERNAL:
         return list(REQUIRED_UPLOAD)
-    return ["G0", "G1", "G3", "G3b", "G5", "G6", "G7", "G8", "G9", "G11"]
+    return [
+        "G0", "G1", "G2", "G3", "G3b", "G4", "G5", "G6", "G7",
+        "G8", "G9", "G10", "G11", "G15",
+    ]
 
 
 def check_gate_tags(tags: dict[str, str], gates: list[str]) -> list[str]:

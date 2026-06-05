@@ -30,6 +30,11 @@ if [ "$MODEL_KEY" = "m3" ]; then
     report G5 failed "M3 artifact missing"
     exit 1
   fi
+  export GATE_STRICT="${GATE_STRICT:-true}"
+  if ! gates/modelaudit.sh "$JOB"; then
+    report G5 failed "G5 model scan (M3 joblib)"
+    exit 1
+  fi
   report G5 passed
   echo "gate-model: PASS (m3)"
   exit 0
@@ -41,6 +46,7 @@ else
   ONNX="${ONNX_PATH:-models/m1_scoring/artifact/onnx/model.onnx}"
 fi
 
+export GATE_STRICT="${GATE_STRICT:-true}"
 report G5 started
 if ! gates/modelaudit.sh "$ONNX"; then
   report G5 failed "G5 model scan"

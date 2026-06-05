@@ -1,0 +1,20 @@
+%% docs/architecture_full.md §14 + §6.2 §6.3
+flowchart TB
+  subgraph neg [Негативные сценарии]
+    A["A: evil.pkl → G5 FAIL"]
+    Bm["B−: train_poisoned → DATA quarantine"]
+  end
+
+  subgraph pos [Happy path]
+    B["B: clean data → train → gates → sign"]
+    C["C: deploy G11 → Production"]
+    D["D: Archived → API 404"]
+    E["E: runtime G13 G14"]
+  end
+
+  A -->|блок| BLOCK1[не в MLflow prod]
+  Bm -->|блок| BLOCK2[не train]
+  B --> C --> D
+  C --> E
+
+  BLOCK1 & BLOCK2 -.-> AUD[(audit + findings)]

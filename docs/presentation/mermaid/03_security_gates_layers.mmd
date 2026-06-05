@@ -1,0 +1,44 @@
+%% docs/architecture.md §7 — Security Gates
+flowchart TB
+  subgraph code [Код и зависимости]
+    G0[G0 gitleaks]
+    G1[G1 Semgrep]
+    G3[G3 pip-audit]
+    G3b[G3b guarddog]
+  end
+
+  subgraph dataset [Данные]
+    DATA[DATA pre-train]
+  end
+
+  subgraph artifact [Артефакт модели]
+    G5[G5 ModelAudit]
+    G6[G6 format policy]
+    G7[G7 signing]
+  end
+
+  subgraph quality [ML quality]
+    G8["G8 holdout"]
+    G9[G9 perturbation]
+    G10[G10 LLM probes]
+  end
+
+  subgraph infra [Инфра]
+    G11[G11 Trivy]
+  end
+
+  subgraph release [Релиз]
+    G12["G12 registry + Human Approve"]
+  end
+
+  subgraph runtime [Runtime]
+    G13[G13 LLM-Guard]
+    G14[G14 rate limit]
+  end
+
+  code --> artifact
+  dataset --> artifact
+  artifact --> quality
+  quality --> release
+  infra --> release
+  release --> runtime

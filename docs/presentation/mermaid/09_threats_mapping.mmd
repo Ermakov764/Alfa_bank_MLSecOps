@@ -1,0 +1,26 @@
+%% docs/architecture_full.md §4 mapping T1-T10
+flowchart LR
+  subgraph threats [Угрозы]
+    T1[T1 Pickle RCE]
+    T3[T3 Секреты]
+    T5[T5 Extraction]
+    T6[T6 Prompt inject]
+    T7[T7 Подмена модели]
+    T9[T9 Data poison]
+  end
+
+  subgraph gates [Gates]
+    G0[G0]
+    G5[G5 G6 G7]
+    DATA[DATA]
+    G10[G10 G13]
+    G14[G14]
+    G12[G12]
+  end
+
+  T1 --> G5
+  T3 --> G0
+  T5 --> G14
+  T6 --> G10
+  T7 --> G12
+  T9 --> DATA

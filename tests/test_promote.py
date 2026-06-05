@@ -22,6 +22,8 @@ def _base_tags(*, origin: str = "ci_trained", approved: bool = False) -> dict[st
         "security.signed": "true",
         "security.G0": "passed",
         "security.G1": "passed",
+        "security.G2": "passed",
+        "security.G4": "passed",
         "security.G3": "passed",
         "security.G3b": "passed",
         "security.G5": "passed",
@@ -30,6 +32,7 @@ def _base_tags(*, origin: str = "ci_trained", approved: bool = False) -> dict[st
         "security.G8": "passed",
         "security.G9": "passed",
         "security.G11": "passed",
+        "security.G15": "passed",
     }
     if approved:
         tags["security.approved_by"] = "mlsecops-user"

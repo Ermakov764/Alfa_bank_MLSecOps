@@ -1,0 +1,27 @@
+%% docs/architecture.md §8 — RBAC
+flowchart LR
+  subgraph users [Keycloak realm]
+    u_ds[ds]
+    u_mso[mlsecops]
+    u_de[de]
+  end
+
+  subgraph resources [Ресурсы]
+    MLF_UI[MLflow UI oauth2-proxy]
+    ST[Streamlit :8502]
+    PROM[promote / deploy]
+    APIS[Inference APIs]
+  end
+
+  u_ds -->|train staging| MLF_UI
+  u_ds -->|read deploy CI| ST
+  u_ds -.-x|deny| PROM
+
+  u_mso -->|approve promote| MLF_UI
+  u_mso -->|promote deploy| PROM
+  u_mso -->|full| ST
+
+  u_de -->|read only| MLF_UI
+  u_de -->|read audit| ST
+
+  APIS -->|Production only| MLF_UI

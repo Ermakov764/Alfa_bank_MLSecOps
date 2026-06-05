@@ -29,10 +29,15 @@ if ! "$PYTHON" scripts/check_format_policy.py "$ART_DIR"; then
 fi
 report G6 passed
 
-ONNX=$(find "$ART_DIR" -name '*.onnx' | head -1)
-if [ -n "$ONNX" ]; then
+ART_FILE=""
+if [ "$MODEL_KEY" = "m3" ]; then
+  ART_FILE=$(find "$ART_DIR" -name '*.joblib' | head -1)
+else
+  ART_FILE=$(find "$ART_DIR" -name '*.onnx' | head -1)
+fi
+if [ -n "$ART_FILE" ]; then
   report G7 started
-  if ! "$PYTHON" scripts/gates/g7_sign_manifest.py "$ONNX"; then
+  if ! "$PYTHON" scripts/gates/g7_sign_manifest.py "$ART_FILE"; then
     report G7 failed "G7 manifest"
     exit 1
   fi

@@ -209,11 +209,14 @@ services:
       - "8001:8001"
     volumes:
       - ./models/m1_scoring/artifact:/app/models/m1_scoring/artifact:ro
+      - ./artifacts/signing:/app/artifacts/signing:ro
+      - ./artifacts/monitoring:/app/artifacts/monitoring
     environment:
       MLFLOW_TRACKING_URI: http://mlflow:5000
       DATABASE_URL: postgresql://${POSTGRES_USER:-mlsecops}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-mlsecops}
       MODEL_NAME: credit-scoring-pd
       RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-30}
+      SIGNING_STRICT: ${SIGNING_STRICT:-true}
     depends_on:
       mlflow:
         condition: service_healthy
@@ -229,11 +232,14 @@ services:
       - "8002:8002"
     volumes:
       - ./artifacts/models/m2_antifraud:/app/artifacts/models/m2_antifraud:ro
+      - ./artifacts/signing:/app/artifacts/signing:ro
+      - ./artifacts/monitoring:/app/artifacts/monitoring
     environment:
       MLFLOW_TRACKING_URI: http://mlflow:5000
       DATABASE_URL: postgresql://${POSTGRES_USER:-mlsecops}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-mlsecops}
       MODEL_NAME: transaction-antifraud
       RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-30}
+      SIGNING_STRICT: ${SIGNING_STRICT:-true}
     depends_on:
       mlflow:
         condition: service_healthy

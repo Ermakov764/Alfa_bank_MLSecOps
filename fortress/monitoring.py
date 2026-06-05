@@ -103,6 +103,36 @@ def audit_summary(limit: int = 25) -> list[dict[str, str]]:
     ]
 
 
+def drift_monitoring_summary() -> list[dict[str, str]]:
+    """G15 drift status from last report + telemetry row counts."""
+    import json
+    from pathlib import Path
+
+    from fortress.inference_telemetry import load_baseline_metrics, load_dataframe
+
+    root = Path(__file__).resolve().parents[1]
+    report_path = root / "artifacts/gates/g15_report.json"
+    report: dict = {}
+    if report_path.exists():
+        try:
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            report = {}
+
+    rows = []
+    for mk in ("m1", "m2"):
+        cur = load_dataframe(mk)
+        baseline = load_baseline_metrics(mk)
+        rows.append({
+            "Модель": mk,
+            "Prod samples": str(len(cur)),
+            "Baseline acc": f"{baseline.get('accuracy', 0):.3f}" if baseline else "—",
+            "Drift PSI max": str(report.get("drift", {}).get("max_psi", "—")),
+            "G15": "PASS" if report_path.exists() else "не запускался",
+        })
+    return rows
+
+
 def mlsecops_kpis() -> dict[str, Any]:
     models = list_registered_models()
     prod = sum(1 for m in models if m["stage"] == "Production")

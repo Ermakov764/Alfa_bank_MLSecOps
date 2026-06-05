@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Element 2: Code gates G0 G1 G3 G3b
+# Element 2: Code gates G0 G1 G2 G3 G3b G4 (strict — real tools in fortress image)
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 export PYTHONPATH="$ROOT"
+export GATE_STRICT="${GATE_STRICT:-true}"
 PYTHON="${PYTHON:-python3}"
 RUN_ID="${RUN_ID:-local}"
 CORR="${CORRELATION_ID:-local}"
@@ -51,6 +52,8 @@ run_one() {
 
 run_one G0 "gates/gitleaks.sh"
 run_one G1 "gates/semgrep.sh"
+run_one G2 "gates/g2_bandit.sh"
 run_one G3 "gates/pip_audit.sh"
 run_one G3b "gates/guarddog.sh"
+run_one G4 "$PYTHON scripts/check_deps_policy.py"
 echo "gate-code: PASS"

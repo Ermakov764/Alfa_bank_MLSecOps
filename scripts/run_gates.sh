@@ -56,10 +56,13 @@ log_finding('$id', 'code', '$id', 'gate_failed', severity='high', correlation_id
 chmod +x gates/*.sh 2>/dev/null || true
 
 if [ "$PHASE" = "ci" ] || [ "$PROFILE" = "fast" ] || [ "$PROFILE" = "strict" ]; then
+  export GATE_STRICT="${GATE_STRICT:-true}"
   run_gate "G0" "gates/gitleaks.sh"
   run_gate "G1" "gates/semgrep.sh"
+  run_gate "G2" "gates/g2_bandit.sh"
   run_gate "G3" "gates/pip_audit.sh"
   run_gate "G3b" "gates/guarddog.sh"
+  run_gate "G4" "$PYTHON scripts/check_deps_policy.py"
 fi
 
 if [ "$PROFILE" = "fast" ] || [ "$PROFILE" = "strict" ]; then
@@ -94,6 +97,9 @@ if [ "$PROFILE" = "strict" ]; then
     run_gate "G9" "gates/g9_art.sh m2"
   fi
   run_gate "G11" "gates/g11_trivy.sh"
+  "$PYTHON" scripts/ci/seed_inference_telemetry.py
+  run_gate "G15" "gates/g15_drift.sh m1"
+  run_gate "G15" "gates/g15_drift.sh m2"
 fi
 
 if [ "$FAILED" -eq 1 ]; then

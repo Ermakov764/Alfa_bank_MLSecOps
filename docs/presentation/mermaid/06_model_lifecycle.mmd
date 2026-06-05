@@ -1,0 +1,19 @@
+%% docs/architecture.md §4 — жизненный цикл модели
+stateDiagram-v2
+  [*] --> DatasetRegistered: ingest CSV
+  DatasetRegistered --> DatasetAvailable: DATA pass
+  DatasetRegistered --> DatasetQuarantine: DATA fail
+
+  DatasetAvailable --> Training: fortress train
+  Training --> Staging: register_model + gates
+
+  Staging --> Staging: gate failed / findings
+  Staging --> Approved: mlsecops Human Approve tier HIGH
+  Staging --> Production: G12 promote
+  Approved --> Production: G12 promote
+
+  Production --> Serving: API load model
+  Serving --> Serving: G13 G14 runtime
+
+  Production --> Archived: retire
+  Archived --> [*]: API 404

@@ -17,7 +17,9 @@ from pydantic import BaseModel, Field
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+from fortress.artifact_integrity import verify_manifest  # noqa: E402
 from fortress.audit import log_event  # noqa: E402
+from fortress.inference_telemetry import record as record_telemetry  # noqa: E402
 from fortress.mlflow_client import get_production_version, get_version_tags  # noqa: E402
 
 app = FastAPI(title="M1 Credit Scoring API", version="1.0.0")
@@ -66,6 +68,11 @@ def _load_model() -> None:
     if not onnx_local.exists():
         _session = None
         return
+    ok, msg = verify_manifest(onnx_local)
+    if not ok:
+        log_event("api-scoring", "api.integrity_failed", status="failed", details={"error": msg})
+        _session = None
+        return
     _session = ort.InferenceSession(str(onnx_local), providers=["CPUExecutionProvider"])
     _model_version = version
 
@@ -112,6 +119,12 @@ def predict(req: PredictRequest, request: Request) -> PredictResponse:
     log_event("api-scoring", "api.inference", resource_type="api",
               model_name=MODEL_NAME, model_version=_model_version or "?",
               status="success", details={"decision": decision})
+    record_telemetry(
+        "m1",
+        features={"amount": req.amount, "age": req.age},
+        score=score,
+        service="api-scoring",
+    )
 
     return PredictResponse(
         score=round(score, 4),

@@ -1,0 +1,40 @@
+%% docs/architecture.md §6 — видимость активов
+erDiagram
+  audit_events ||--o{ findings : correlation_id
+  datasets ||--o{ audit_events : resource
+  MLFLOW_MODEL ||--o{ audit_events : model_name
+  pipeline_runs ||--o{ findings : gate_run
+
+  audit_events {
+    string actor
+    string action
+    string status
+    string prev_hash
+    string row_hash
+  }
+
+  datasets {
+    string name
+    string version
+    string sha256
+    string status
+  }
+
+  findings {
+    string gate
+    string severity
+    string status
+  }
+
+  MLFLOW_MODEL {
+    string name
+    string version
+    string stage
+    tags security_tags
+  }
+
+  pipeline_runs {
+    string element
+    string gate
+    string status
+  }

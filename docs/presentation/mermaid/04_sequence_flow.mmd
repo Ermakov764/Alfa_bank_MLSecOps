@@ -1,0 +1,27 @@
+%% docs/architecture.md §5 — сквозной поток
+sequenceDiagram
+  autonumber
+  participant DS as DS
+  participant DATA as DATA gate
+  participant PG as Postgres
+  participant TR as train script
+  participant MLF as MLflow
+  participant G as Gates G0-G11
+  participant MSO as MLSecOps
+  participant API as Inference API
+
+  DS->>DATA: ingest train_clean.csv
+  DATA->>PG: dataset available + audit
+  DS->>TR: fortress train
+  TR->>MLF: log metrics, artifact ONNX
+  DS->>G: fortress pipeline / gates
+  G->>MLF: tags security.G*=passed
+  G->>PG: findings if fail
+  DS->>MLF: register Staging + model_card
+  MSO->>MSO: Human Approve tier HIGH
+  MSO->>MLF: G12 → Production
+  MSO->>PG: model.promoted
+  DS->>API: POST /predict
+  API->>MLF: resolve Production URI
+  API->>PG: api.inference
+  API-->>DS: 200 score

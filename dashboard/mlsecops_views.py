@@ -14,7 +14,14 @@ from dashboard.shared_views import (
     render_services_health,
 )
 from fortress.audit import verify_chain
-from fortress.monitoring import audit_summary, external_approval_queue, mlsecops_kpis, models_overview, pipeline_summary
+from fortress.monitoring import (
+    audit_summary,
+    drift_monitoring_summary,
+    external_approval_queue,
+    mlsecops_kpis,
+    models_overview,
+    pipeline_summary,
+)
 
 
 def render_mlsecops_home() -> None:
@@ -30,6 +37,13 @@ def render_mlsecops_home() -> None:
             st.error(f"Ошибка: {kpi['last_failure']}")
     except Exception as e:
         st.warning(str(e))
+
+    st.subheader("G15 Drift / prod monitoring")
+    drift_df = pd.DataFrame(drift_monitoring_summary())
+    if drift_df.empty:
+        st.caption("Запустите gate-model / CI для G15.")
+    else:
+        st.dataframe(drift_df, use_container_width=True, hide_index=True)
 
     st.subheader("Состояние сервисов")
     render_services_health()
