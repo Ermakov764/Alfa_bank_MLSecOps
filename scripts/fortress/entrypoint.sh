@@ -42,11 +42,44 @@ EOF
     /app/scripts/fortress/wait-services.sh
     exec python /app/scripts/ci/run_pipeline.py "$@"
     ;;
+  ci-gate-data)
+    exec bash /app/scripts/ci/gate_data.sh
+    ;;
+  ci-gate-code)
+    exec bash /app/scripts/ci/gate_code.sh
+    ;;
+  ci-gate-artifacts)
+    for mk in m1 m2 m3; do
+      if [ "$mk" = "m2" ]; then
+        MODEL_KEY=m2 ARTIFACT_DIR=/app/artifacts/models/m2_antifraud bash /app/scripts/ci/gate_artifacts.sh
+      else
+        MODEL_KEY="$mk" bash /app/scripts/ci/gate_artifacts.sh
+      fi
+    done
+    ;;
+  ci-gate-model)
+    export WAIT_LITELLM=1
+    /app/scripts/fortress/wait-services.sh
+    python /app/tests/fixtures/malicious/create_evil_pickle.py
+    for mk in m1 m2 m3; do
+      MODEL_KEY="$mk" bash /app/scripts/ci/gate_model.sh
+    done
+    bash /app/gates/modelaudit.sh /app/tests/fixtures/malicious/evil_model.pkl && exit 1 \
+      || echo "G5 correctly blocked evil pickle"
+    ;;
+  ci-sign)
+    exec python /app/scripts/ci/sign_attestation.py \
+      --run-id "${RUN_ID:-local}" \
+      --model all \
+      --model-key all \
+      --correlation-id "${CORRELATION_ID:-local}" \
+      --strict
+    ;;
   demo)
     exec /app/scripts/fortress/demo.sh "$@"
     ;;
   test)
-    exec python -m pytest tests/test_smoke.py tests/test_attestation.py -q "$@"
+    exec python -m pytest tests/test_smoke.py tests/test_attestation.py tests/test_gate_integrity.py -q "$@"
     ;;
   gates|security)
     export PROFILE="${PROFILE:-fast}"

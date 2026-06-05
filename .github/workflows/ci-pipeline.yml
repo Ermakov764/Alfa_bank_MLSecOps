@@ -14,7 +14,6 @@ on:
 env:
   RUN_ID: ${{ github.run_id }}
   CORRELATION_ID: ${{ github.run_id }}-${{ github.run_attempt }}
-  # Fast, deterministic defaults for CI environment
   POSTGRES_USER: mlsecops
   POSTGRES_PASSWORD: changeme
   POSTGRES_DB: mlsecops
@@ -23,42 +22,195 @@ env:
   MLFLOW_OAUTH_SECRET: mlflow-oauth-dev-secret
   OAUTH2_PROXY_COOKIE_SECRET: YXNkZmFzZGZhc2RmYXNkZmFzZGZhc2Rm
   IMAGE_TAG: ci
+  # Prod-like stack (S3 + MLflow + APIs + Streamlit UI)
+  COMPOSE_STACK: >-
+    postgres minio minio-init keycloak mlflow oauth2-proxy-mlflow
+    api-scoring api-antifraud litellm dashboard
+  COMPOSE_BUILD: mlflow api-scoring api-antifraud litellm dashboard fortress
 
 jobs:
-  compose-pipeline:
+  gate-data:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Prepare .env for compose
+      - run: cp .env.example .env
+      - run: docker compose build fortress
+      - name: DATA gate (fortress container)
         run: |
-          cp .env.example .env
-          # CI overrides come from workflow env section above.
-      - name: Build images (cache-friendly)
+          docker compose --profile tools run --rm --no-deps \
+            -e RUN_ID="${{ env.RUN_ID }}" \
+            -e CORRELATION_ID="${{ env.CORRELATION_ID }}" \
+            fortress ci-gate-data
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fortress-artifacts
+          path: artifacts/
+
+  gate-code:
+    needs: gate-data
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cp .env.example .env
+      - uses: actions/download-artifact@v4
+        with:
+          name: fortress-artifacts
+          path: artifacts
+      - run: docker compose build fortress
+      - name: Code gates G0–G3b (fortress container)
         run: |
-          docker compose build mlflow api-scoring api-antifraud litellm dashboard fortress
-      - name: Start prod-like stack (S3 + MLflow + UI)
-        run: |
-          docker compose up -d postgres minio minio-init keycloak mlflow oauth2-proxy-mlflow api-scoring api-antifraud litellm dashboard
-      - name: Run CI pipeline inside fortress container
+          docker compose --profile tools run --rm --no-deps \
+            -e RUN_ID="${{ env.RUN_ID }}" \
+            -e CORRELATION_ID="${{ env.CORRELATION_ID }}" \
+            fortress ci-gate-code
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fortress-artifacts
+          path: artifacts/
+
+  train:
+    needs: gate-code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cp .env.example .env
+      - uses: actions/download-artifact@v4
+        with:
+          name: fortress-artifacts
+          path: artifacts
+      - run: docker compose build ${{ env.COMPOSE_BUILD }}
+      - name: Start prod-like stack (Postgres + MinIO/S3 + MLflow + UI)
+        run: docker compose up -d ${{ env.COMPOSE_STACK }}
+      - name: Wait for stack + bootstrap
         run: |
           docker compose --profile tools run --rm \
             -e RUN_ID="${{ env.RUN_ID }}" \
             -e CORRELATION_ID="${{ env.CORRELATION_ID }}" \
-            fortress pipeline
-      - name: Run unit tests inside fortress container
+            fortress bootstrap
+      - name: Verify dashboard UI is up
         run: |
-          docker compose --profile tools run --rm fortress test
-      - name: Upload artifacts (gates + attestation)
-        if: always()
-        uses: actions/upload-artifact@v4
+          for i in $(seq 1 40); do
+            if curl -sf http://localhost:8502/_stcore/health >/dev/null; then
+              echo "Dashboard OK (http://localhost:8502)"
+              exit 0
+            fi
+            sleep 3
+          done
+          docker compose logs --no-color --tail=80 dashboard
+          exit 1
+      - name: Train M1/M2/M3 (fortress container)
+        run: |
+          docker compose --profile tools run --rm \
+            -e RUN_ID="${{ env.RUN_ID }}" \
+            -e CORRELATION_ID="${{ env.CORRELATION_ID }}" \
+            fortress train
+      - uses: actions/upload-artifact@v4
         with:
           name: fortress-artifacts
-          path: artifacts/
-      - name: Dump compose status
-        if: always()
-        run: |
-          docker compose ps
-          docker compose logs --no-color --tail=200 mlflow oauth2-proxy-mlflow dashboard litellm || true
-      - name: Teardown
+          path: |
+            artifacts/
+            models/m1_scoring/artifact/
+            artifacts/models/m2_antifraud/
+            models/m3_nlp/artifact/
+      - name: Teardown stack
         if: always()
         run: docker compose down -v
+
+  gate-artifacts:
+    needs: train
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cp .env.example .env
+      - uses: actions/download-artifact@v4
+        with:
+          name: fortress-artifacts
+          path: .
+      - run: docker compose build ${{ env.COMPOSE_BUILD }}
+      - name: Start stack for artifact gates
+        run: docker compose up -d postgres minio minio-init mlflow
+      - name: G6/G7 artifact gates (fortress container)
+        run: |
+          docker compose --profile tools run --rm \
+            -e RUN_ID="${{ env.RUN_ID }}" \
+            -e CORRELATION_ID="${{ env.CORRELATION_ID }}" \
+            fortress ci-gate-artifacts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fortress-artifacts
+          path: |
+            artifacts/
+            models/m1_scoring/artifact/
+            artifacts/models/m2_antifraud/
+            models/m3_nlp/artifact/
+      - name: Teardown stack
+        if: always()
+        run: docker compose down -v
+
+  gate-model:
+    needs: gate-artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cp .env.example .env
+      - uses: actions/download-artifact@v4
+        with:
+          name: fortress-artifacts
+          path: .
+      - run: docker compose build ${{ env.COMPOSE_BUILD }}
+      - name: Start full stack (G10 needs LiteLLM)
+        run: docker compose up -d ${{ env.COMPOSE_STACK }}
+      - name: G5/G8/G9/G10 model gates (fortress container)
+        run: |
+          docker compose --profile tools run --rm \
+            -e RUN_ID="${{ env.RUN_ID }}" \
+            -e CORRELATION_ID="${{ env.CORRELATION_ID }}" \
+            fortress ci-gate-model
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fortress-artifacts
+          path: |
+            artifacts/
+            models/m1_scoring/artifact/
+            artifacts/models/m2_antifraud/
+            models/m3_nlp/artifact/
+      - name: Teardown stack
+        if: always()
+        run: docker compose down -v
+
+  sign-attestation:
+    needs: gate-model
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cp .env.example .env
+      - uses: actions/download-artifact@v4
+        with:
+          name: fortress-artifacts
+          path: .
+      - run: docker compose build fortress
+      - name: Sign attestation (Ed25519 strict)
+        run: |
+          docker compose --profile tools run --rm --no-deps \
+            -e RUN_ID="${{ env.RUN_ID }}" \
+            -e CORRELATION_ID="${{ env.CORRELATION_ID }}" \
+            fortress ci-sign
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fortress-attestation
+          path: artifacts/attestation/
+
+  unit-tests:
+    needs: sign-attestation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cp .env.example .env
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: fortress-attestation
+          path: artifacts/attestation/
+      - run: docker compose build fortress
+      - name: Pytest (fortress container)
+        run: docker compose --profile tools run --rm --no-deps fortress test

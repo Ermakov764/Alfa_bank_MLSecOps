@@ -19,7 +19,7 @@ gate-data (DATA) → gate-code (G0,G1,G3,G3b) → train → gate-artifacts (G6,G
 
 Локально: `make ci-pipeline` → `scripts/ci/run_pipeline.sh`.
 
-В GitHub Actions job **train** поднимает **Postgres service** + **MLflow server** (`scripts/ci/start_ml_stack.sh`) — как в Docker, но без MinIO (артефакты в `file:///tmp/mlflow-artifacts`).
+В GitHub Actions каждый этап — **отдельный job** в UI (`gate-data` → `gate-code` → `train` → …), но команды выполняются в контейнере **`fortress`** через `docker compose`. Job **train** поднимает полный стек: Postgres + MinIO (S3) + MLflow + dashboard UI + API.
 
 ## Прозрачность
 
