@@ -1,5 +1,14 @@
 # CI/CD Pipeline — FORTRESS
 
+## Два workflow на push (зачем)
+
+| Workflow | Файл | Назначение |
+|----------|------|------------|
+| **CI Pipeline (MLflow path)** | `.github/workflows/ci-pipeline.yml` | Основной: DATA → code gates → **train с Postgres+MLflow** → artifact/model gates → sign → pytest |
+| **Security Gates (legacy smoke)** | `.github/workflows/security.yml` | Быстрый smoke (~10 с): только G5 на `evil_model.pkl`; остался с раннего MVP до полного `ci-pipeline` |
+
+Оба триггерятся на `push` в `main` — поэтому в Actions видно **два run’а** на один коммит. Legacy smoke можно отключить или ограничить `paths`, если мешает шумом.
+
 ## Поток (MLflow / retrain)
 
 ```text
@@ -9,6 +18,8 @@ gate-data (DATA) → gate-code (G0,G1,G3,G3b) → train → gate-artifacts (G6,G
 Каждый этап — **отдельный job/контейнер** в GitHub Actions (`.github/workflows/ci-pipeline.yml`).
 
 Локально: `make ci-pipeline` → `scripts/ci/run_pipeline.sh`.
+
+В GitHub Actions job **train** поднимает **Postgres service** + **MLflow server** (`scripts/ci/start_ml_stack.sh`) — как в Docker, но без MinIO (артефакты в `file:///tmp/mlflow-artifacts`).
 
 ## Прозрачность
 

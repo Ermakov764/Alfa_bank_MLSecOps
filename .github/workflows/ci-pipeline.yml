@@ -56,17 +56,50 @@ jobs:
   train:
     needs: gate-code
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: mlsecops
+          POSTGRES_PASSWORD: changeme
+          POSTGRES_DB: mlsecops
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mlsecops -d mlsecops"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: mlsecops
+      POSTGRES_PASSWORD: changeme
+      POSTGRES_DB: mlsecops
+      DATABASE_URL: postgresql://mlsecops:changeme@postgres:5432/mlsecops
+      MLFLOW_BACKEND_STORE_URI: postgresql://mlsecops:changeme@postgres:5432/mlsecops
+      MLFLOW_DEFAULT_ARTIFACT_ROOT: file:///tmp/mlflow-artifacts
+      MLFLOW_TRACKING_URI: http://127.0.0.1:5000
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      - run: pip install -r requirements.txt
+      - name: Install deps and Postgres client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client curl
+          pip install -r requirements.txt psycopg2-binary
+      - name: Start Postgres + MLflow (prod-like)
+        run: |
+          chmod +x scripts/ci/start_ml_stack.sh
+          bash scripts/ci/start_ml_stack.sh
       - name: Train models
         run: |
           python models/m1_scoring/train.py
           python models/m2_antifraud/train.py
           python models/m3_nlp/train.py
+        env:
+          MLFLOW_TRACKING_URI: http://127.0.0.1:5000
       - uses: actions/upload-artifact@v4
         with:
           name: train-artifacts

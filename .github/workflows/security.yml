@@ -1,3 +1,5 @@
+# Legacy smoke: fast G5 check only. Full pipeline — ci-pipeline.yml.
+# Runs in parallel on every push; disable here or add paths-ignore if noisy.
 name: Security Gates (legacy smoke)
 
 on:
