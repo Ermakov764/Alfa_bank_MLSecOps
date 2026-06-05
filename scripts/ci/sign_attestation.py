@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
-"""Sign attestation only after strict gate verification."""
+"""Sign platform attestation after strict gate verification."""
 
 from __future__ import annotations
 
 import argparse
-import hashlib
-import json
 import os
 import subprocess
 import sys
@@ -31,41 +29,38 @@ def _git_commit() -> str:
 def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--run-id", required=True)
-    p.add_argument("--model", default=None, help="MLflow name; default from --model-key via CI registry")
-    p.add_argument("--model-key", default="m1")
+    p.add_argument("--model", default="platform", help="Attestation scope label (default: platform)")
     p.add_argument("--correlation-id", default=os.getenv("CORRELATION_ID", ""))
-    p.add_argument("--strict", action="store_true", help="Require pipeline_runs + artifacts")
+    p.add_argument("--strict", action="store_true", help="Require pipeline_runs for DATA + code gates")
     args = p.parse_args()
-
-    from fortress.registry_policy import ci_model_name
-
-    model_name = args.model if args.model is not None else ci_model_name(args.model_key)
 
     corr = args.correlation_id or args.run_id
     ensure_keypair()
 
     if args.strict:
-        ok, errs = verify_pipeline_run(args.run_id, args.model_key, require_db=False)
+        skip_data = os.getenv("PIPELINE_SKIP_DATA", "").lower() in ("1", "true", "yes")
+        dataset = Path(os.getenv("PIPELINE_DATASET_CSV", str(ROOT / "data/datasets/train_clean.csv")))
+        ok, errs = verify_pipeline_run(
+            args.run_id, require_db=False, require_data=not skip_data and dataset.exists(),
+        )
         if errs:
             for e in errs:
                 print(f"WARN verify: {e}", file=sys.stderr)
         if not ok:
-            print("FAIL: strict attestation — gate records or artifacts incomplete", file=sys.stderr)
+            print("FAIL: strict attestation — gate records incomplete", file=sys.stderr)
             return 1
-        try:
-            elements = build_attestation_elements(args.run_id, args.model_key)
-        except ValueError as exc:
-            print(f"FAIL: {exc}", file=sys.stderr)
-            return 1
+        elements = build_attestation_elements(
+            args.run_id,
+            dataset_path=dataset if dataset.exists() else None,
+            include_data=not skip_data and dataset.exists(),
+        )
     else:
         elements = {
             "data": {"status": "passed", "gates": ["DATA"]},
             "code": {"status": "passed", "gates": ["G0", "G1", "G3", "G3b"]},
-            "train": {"status": "passed", "gates": []},
-            "model": {"status": "passed", "gates": ["G5", "G8", "G9"]},
         }
 
-    payload = build_attestation(corr, elements, model_name=model_name, commit=_git_commit())
+    payload = build_attestation(corr, elements, model_name=args.model, commit=_git_commit())
     signed = sign_attestation(payload)
     out = ROOT / "artifacts/attestation/fortress-attestation.signed.json"
     save_signed(out, signed)
@@ -73,7 +68,7 @@ def main() -> int:
 
     record_pipeline_step(
         args.run_id, "sign", "passed",
-        model_name=model_name,
+        model_name=args.model,
         report_path=str(out),
         correlation_id=corr,
         details={"algorithm": "ed25519", "strict": args.strict},

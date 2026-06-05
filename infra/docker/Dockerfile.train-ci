@@ -1,8 +1,0 @@
-FROM python:3.11-slim
-WORKDIR /app
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt scikit-learn onnx skl2onnx joblib
-COPY models/ models/
-COPY data/datasets/ data/datasets/
-ENV PYTHONPATH=/app
-CMD ["python", "models/m1_scoring/train.py"]

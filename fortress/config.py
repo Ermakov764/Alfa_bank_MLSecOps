@@ -20,18 +20,6 @@ def keycloak_public_url() -> str:
     return public_url("KEYCLOAK_PUBLIC_URL", "http://localhost:8080")
 
 
-def m1_api_url() -> str:
-    return public_url("M1_API_URL", "http://localhost:8001")
-
-
-def m2_api_url() -> str:
-    return public_url("M2_API_URL", "http://localhost:8002")
-
-
-def m3_api_url() -> str:
-    return public_url("M3_API_URL", "http://localhost:4000")
-
-
 def service_health_url(env_key: str, fallback: str) -> str:
     return os.getenv(env_key, fallback).rstrip("/")
 

@@ -39,10 +39,7 @@ ENV PYTHONPATH=/app \
     AWS_ACCESS_KEY_ID=minio \
     AWS_SECRET_ACCESS_KEY=changeme \
     AWS_DEFAULT_REGION=us-east-1 \
-    FORTRESS_ATTESTATION_PATH=/app/artifacts/attestation/fortress-attestation.signed.json \
-    API_SCORING_URL=http://api-scoring:8001 \
-    API_ANTIFRAUD_URL=http://api-antifraud:8002 \
-    LITELLM_URL=http://litellm:4000
+    FORTRESS_ATTESTATION_PATH=/app/artifacts/attestation/fortress-attestation.signed.json
 
 # bash wrapper: bind-mount .:/app on Windows/Linux may drop +x from the image layer
 ENTRYPOINT ["bash", "/app/scripts/fortress/entrypoint.sh"]

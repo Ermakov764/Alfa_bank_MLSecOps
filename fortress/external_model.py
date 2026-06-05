@@ -76,4 +76,4 @@ def register_external_from_files(
         details={"origin": ORIGIN_EXTERNAL},
         correlation_id=str(uuid.uuid4()),
     )
-    return True, f"Модель {model_name} v{version} зарегистрирована (external, Staging)"
+    return True, f"Модель {model_name} v{version} зарегистрирована (Staging, ждёт одобрения MLSecOps для prod)"

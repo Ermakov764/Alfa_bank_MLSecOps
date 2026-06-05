@@ -36,8 +36,8 @@ def _base_tags(*, origin: str = "ci_trained", approved: bool = False) -> dict[st
     return tags
 
 
-def test_ds_can_promote_ci_trained() -> None:
-    ok, msg = check_promote_policy(_base_tags(), "credit-scoring-pd", actor_role="ds")
+def test_ds_can_promote_ci_trained_legacy() -> None:
+    ok, msg = check_promote_policy(_base_tags(), "legacy-ci-model", actor_role="ds")
     assert ok, msg
 
 

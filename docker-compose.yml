@@ -11,9 +11,6 @@ x-fortress-env: &fortress-env
   POSTGRES_DB: ${POSTGRES_DB:-mlsecops}
   FORTRESS_ATTESTATION_PATH: /app/artifacts/attestation/fortress-attestation.signed.json
   FORTRESS_PYTHON_GATES: "true"
-  API_SCORING_URL: http://api-scoring:8001
-  API_ANTIFRAUD_URL: http://api-antifraud:8002
-  LITELLM_URL: http://litellm:4000
   KEYCLOAK_URL: http://keycloak:8080
 
 services:
@@ -196,70 +193,6 @@ services:
       mlflow:
         condition: service_healthy
 
-  api-scoring:
-    build:
-      context: .
-      dockerfile: services/api_scoring/Dockerfile
-    image: ${DOCKERHUB_USER:-rinakt}/mlsecops-api-scoring:${IMAGE_TAG:-latest}
-    ports:
-      - "8001:8001"
-    volumes:
-      - ./models/m1_scoring/artifact:/app/models/m1_scoring/artifact:ro
-    environment:
-      MLFLOW_TRACKING_URI: http://mlflow:5000
-      DATABASE_URL: postgresql://${POSTGRES_USER:-mlsecops}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-mlsecops}
-      MODEL_NAME: credit-scoring-pd
-      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-30}
-    depends_on:
-      mlflow:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-
-  api-antifraud:
-    build:
-      context: .
-      dockerfile: services/api_antifraud/Dockerfile
-    image: ${DOCKERHUB_USER:-rinakt}/mlsecops-api-antifraud:${IMAGE_TAG:-latest}
-    ports:
-      - "8002:8002"
-    volumes:
-      - ./artifacts/models/m2_antifraud:/app/artifacts/models/m2_antifraud:ro
-    environment:
-      MLFLOW_TRACKING_URI: http://mlflow:5000
-      DATABASE_URL: postgresql://${POSTGRES_USER:-mlsecops}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-mlsecops}
-      MODEL_NAME: transaction-antifraud
-      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-30}
-    depends_on:
-      mlflow:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-
-  litellm:
-    build:
-      context: .
-      dockerfile: services/litellm/Dockerfile
-    image: ${DOCKERHUB_USER:-rinakt}/mlsecops-litellm:${IMAGE_TAG:-latest}
-    ports:
-      - "4000:4000"
-    volumes:
-      - ./models/m3_nlp/artifact:/app/models/m3_nlp/artifact:ro
-    environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-mlsecops}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-mlsecops}
-      LLM_GUARD_ENABLED: ${LLM_GUARD_ENABLED:-true}
-      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-30}
-      M3_MODEL_PATH: /app/models/m3_nlp/artifact/intent_pipeline.joblib
-    depends_on:
-      postgres:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:4000/health')\""]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 20s
-
   dashboard:
     build:
       context: .
@@ -284,12 +217,6 @@ services:
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-changeme}
       DATABASE_URL: postgresql://${POSTGRES_USER:-mlsecops}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-mlsecops}
       FORTRESS_ATTESTATION_PATH: /app/artifacts/attestation/fortress-attestation.signed.json
-      M1_API_URL: http://localhost:8001
-      M2_API_URL: http://localhost:8002
-      M3_API_URL: http://localhost:4000
-      M1_HEALTH_URL: http://api-scoring:8001
-      M2_HEALTH_URL: http://api-antifraud:8002
-      M3_HEALTH_URL: http://litellm:4000
       MLFLOW_HEALTH_URL: http://mlflow:5000
       JUPYTER_HEALTH_URL: http://jupyter:8888
       FORTRESS_STRICT_AUDIT: "true"

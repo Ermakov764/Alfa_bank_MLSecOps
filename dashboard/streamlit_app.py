@@ -19,7 +19,7 @@ from fortress.auth import (  # noqa: E402
     register_and_login,
 )
 from fortress.keycloak_admin import ROLE_LABELS, keycloak_reachable  # noqa: E402
-from fortress.config import jupyter_public_url, m1_api_url, m2_api_url, m3_api_url  # noqa: E402
+from fortress.config import jupyter_public_url  # noqa: E402
 from dashboard.ds_views import (  # noqa: E402
     render_ds_checks,
     render_ds_deploy,
@@ -120,9 +120,6 @@ st.sidebar.link_button("MLflow", MLFLOW_URL)
 if user.role == "ds":
     st.sidebar.link_button("Jupyter", jupyter_public_url())
 st.sidebar.link_button("Keycloak", keycloak_account_url())
-st.sidebar.link_button("M1 API", f"{m1_api_url()}/docs")
-st.sidebar.link_button("M2 API", f"{m2_api_url()}/docs")
-st.sidebar.link_button("M3 NLP", f"{m3_api_url()}/health")
 st.sidebar.caption("Docker: .\\fortress.ps1 up")
 
 st.title("Security Center" if user.role == "mlsecops" else "FORTRESS — Data Scientist")

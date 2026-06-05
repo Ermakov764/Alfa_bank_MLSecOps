@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from fortress.app_runner import run_bootstrap, run_train
+from fortress.app_runner import run_bootstrap
 from fortress.deploy_runner import archive_version, deploy_to_production, run_precheck
 from fortress.ds_workspace import check_results_detailed, my_findings
 from fortress.mlflow_client import list_models_for_user, list_versions, version_security_summary
@@ -30,25 +30,15 @@ def render_services_health(compact: bool = False) -> None:
 
 
 def render_pipeline_panel(user, *, key_prefix: str = "shared") -> None:
-    st.subheader("CI Pipeline")
-    st.caption("DATA gate → code → train → model gates → подпись → sync MLflow")
-    c1, c2, c3 = st.columns([2, 1, 1])
-    with c1:
-        mk = st.selectbox("Модели", ["all", "m1", "m2", "m3"], key=f"{key_prefix}_pipeline_mk")
-    with c2:
-        run_p = st.button("Запустить pipeline", type="primary", key=f"{key_prefix}_run_pipeline")
-    with c3:
-        run_t = st.button("Только train", key=f"{key_prefix}_run_train")
-    if run_p:
+    st.subheader("Platform pipeline")
+    st.caption("DATA gate (если есть CSV) → code gates → подпись platform attestation")
+    st.info(
+        "Модель загружаете отдельно: «Зарегистрировать модель» → файлы ONNX/joblib → Deploy."
+    )
+    if st.button("Запустить pipeline", type="primary", key=f"{key_prefix}_run_pipeline"):
         with st.spinner("Pipeline…"):
-            ok, log = run_pipeline(model_key=mk, actor=user.username)
+            ok, log = run_pipeline(actor=user.username)
         st.success("Pipeline OK") if ok else st.error("Pipeline failed")
-        if log:
-            st.code(log[-6000:], language="text")
-    if run_t and user.can_train:
-        with st.spinner("Train…"):
-            ok, log = run_train(actor=user.username)
-        st.success("Train OK") if ok else st.error("Train failed")
         if log:
             st.code(log[-6000:], language="text")
 
@@ -71,7 +61,7 @@ def render_deploy_panel(
 ) -> None:
     models = list_models_for_user(user.username, role=user.role)
     if not models:
-        st.info("Нет моделей в MLflow.")
+        st.info("Нет моделей в MLflow. Загрузите модель на вкладке «Мои модели».")
         return
     sel = st.selectbox("Модель", models, key=f"{key_prefix}_model")
     vers = list_versions(sel, user.username, role=user.role)
@@ -92,7 +82,7 @@ def render_deploy_panel(
     if summary["missing_gates"]:
         st.error("Не пройдены: " + ", ".join(summary["missing_gates"]))
     elif summary["needs_mlsecops"] and not summary["approved_by"]:
-        st.warning("Внешняя модель — нужно одобрение MLSecOps.")
+        st.warning("Нужно одобрение MLSecOps перед Production.")
     else:
         st.success(summary["approval_label"])
 

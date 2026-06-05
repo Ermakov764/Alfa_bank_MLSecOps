@@ -40,27 +40,27 @@ def render_ds_home(user) -> None:
     c3.metric("Подписанные датасеты", kpi["signed_datasets"])
     c4.metric("Требуют внимания", kpi["needs_attention"])
 
-    with st.expander("Pipeline и train", expanded=False):
+    with st.expander("Pipeline (DATA + code gates)", expanded=False):
         render_pipeline_panel(user, key_prefix="ds")
 
-    with st.expander("Зарегистрировать внешнюю модель", expanded=False):
-        _render_external_register(user)
+    with st.expander("Зарегистрировать модель", expanded=False):
+        _render_model_register(user)
 
     df = my_models_overview(user.username, user.role)
     if df:
         st.dataframe(df, use_container_width=True, hide_index=True)
     else:
-        st.info("Моделей пока нет. Запустите pipeline выше или зарегистрируйте external-модель.")
+        st.info("Моделей пока нет. Загрузите модель ниже или файлы в MLflow на вкладке «Данные».")
 
 
-def _render_external_register(user) -> None:
+def _render_model_register(user) -> None:
     from fortress.external_model import register_external_from_files
 
     name = st.text_input("Имя модели в MLflow", key="ext_model_name")
     purpose = st.text_input("Назначение", key="ext_purpose")
     tier = st.selectbox("Tier", ["HIGH", "MED", "LOW"], key="ext_tier")
     files = st.file_uploader("Файлы модели (ONNX, joblib, manifest…)", accept_multiple_files=True, key="ext_files")
-    if st.button("Зарегистрировать external", key="ext_reg_btn") and files and name:
+    if st.button("Зарегистрировать модель", key="ext_reg_btn") and files and name:
         payload = [(f.name, f.getvalue()) for f in files]
         ok, msg = register_external_from_files(
             name, payload, owner=user.username, purpose=purpose, tier=tier,
@@ -360,7 +360,7 @@ def render_ds_help(user) -> None:
         f"""
 ### Data Scientist — всё через кнопки в UI
 
-1. **Мои модели** — pipeline, train, регистрация external-модели  
+1. **Мои модели** — загрузка модели, platform pipeline  
 2. **Данные** — загрузка файлов в MLflow, DATA gate  
 3. **Deploy** — Pre-deploy → Production  
 4. **Findings / Проверки** — если что-то заблокировано  

@@ -15,7 +15,6 @@ from fortress.mlflow_client import (
     version_security_summary,
 )
 from fortress.pipeline import fetch_pipeline_runs, load_local_runs
-from fortress.registry_policy import model_origin
 
 
 def _owner_match(owner: str, username: str, role: str) -> bool:
@@ -31,12 +30,11 @@ def my_models_overview(username: str, role: str = "ds") -> list[dict[str, str]]:
         if not _owner_match(owner, username, role):
             continue
         summary = version_security_summary(m["name"], m["version"])
-        origin = model_origin(m["tags"], m["name"])
         rows.append({
             "Модель": m["name"],
             "Версия": m["version"],
             "Стадия": m["stage"],
-            "Тип": "CI" if origin == "ci_trained" else "внешняя",
+            "Тип": "загружена",
             "Подпись": "да" if summary["signed"] else "нет",
             "Статус": summary["approval_label"],
             "Проблема": (summary["last_failure"] or "—")[:100],

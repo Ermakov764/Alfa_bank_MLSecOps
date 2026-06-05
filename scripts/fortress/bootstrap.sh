@@ -20,7 +20,7 @@ print(f"keycloak: {msg}")
 if not ok:
     sys.exit(1)
 from fortress.mlflow_client import ensure_experiment
-for name in ("m1-credit-scoring", "m2-antifraud", "m3-support-nlp", "fortress-default", "fortress-datasets", "ds-experiments"):
+for name in ("fortress-default", "fortress-datasets", "ds-experiments"):
     print(f"experiment {name}: {ensure_experiment(name)}")
 from fortress.mlflow_datasets import ensure_dataset_experiment
 print(f"experiment fortress-datasets (S3): {ensure_dataset_experiment()}")

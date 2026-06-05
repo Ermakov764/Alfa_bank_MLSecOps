@@ -160,7 +160,7 @@ def version_security_summary(model_name: str, version: str) -> dict[str, Any]:
     from fortress.security_profile import check_gate_tags, required_gates_for_model
 
     tags = get_version_tags(model_name, version)
-    req = required_gates_for_model(model_name)
+    req = required_gates_for_model(model_name, tags)
     missing = check_gate_tags(tags, req)
     status = approval_status(tags, model_name, missing_gates=missing)
     return {

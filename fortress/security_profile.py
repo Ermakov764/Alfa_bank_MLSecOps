@@ -5,22 +5,18 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from fortress.model_card import ModelCard, validate_card  # noqa: E402 — repo package
-from fortress.registry_policy import requires_mlsecops_approval  # noqa: E402
+from fortress.model_card import validate_card
+from fortress.registry_policy import model_origin, ORIGIN_EXTERNAL, requires_mlsecops_approval
 
-# Required gates by model type
-REQUIRED_CI = ["G0", "G1", "G3", "G3b"]
-REQUIRED_REGISTER = ["G5", "G6", "G7"]
-REQUIRED_M1_M2_VALIDATE = ["G8", "G9"]
-REQUIRED_M3_VALIDATE = ["G10"]
-REQUIRED_DEPLOY = ["G11"]
+# Gates checked on uploaded model artifacts (at register / pre-deploy)
+REQUIRED_UPLOAD = ["G5", "G6"]
 
 
-def required_gates_for_model(model_name: str) -> list[str]:
-    base = REQUIRED_CI + REQUIRED_REGISTER + REQUIRED_DEPLOY
-    if "nlp" in model_name or "support" in model_name:
-        return base + REQUIRED_M3_VALIDATE
-    return base + REQUIRED_M1_M2_VALIDATE
+def required_gates_for_model(model_name: str, tags: dict[str, str] | None = None) -> list[str]:
+    tags = tags or {}
+    if model_origin(tags, model_name) == ORIGIN_EXTERNAL:
+        return list(REQUIRED_UPLOAD)
+    return ["G0", "G1", "G3", "G3b", "G5", "G6", "G7", "G8", "G9", "G11"]
 
 
 def check_gate_tags(tags: dict[str, str], gates: list[str]) -> list[str]:
@@ -42,8 +38,7 @@ def check_promote_policy(
     """
     G12 meta-gate (MLflow tags = source of truth).
 
-    - CI-trained + signed attestation + all gates → DS may promote without MLSecOps.
-    - External models (vendor / not in our pipeline) → only MLSecOps after HITL.
+    User-uploaded models (security.origin=external): model_card + scan + MLSecOps HITL.
     """
     card_raw = tags.get("model_card")
     if not card_raw:
@@ -53,30 +48,32 @@ def check_promote_policy(
     except Exception as e:
         return False, f"invalid model_card: {e}"
 
-    missing = check_gate_tags(tags, required_gates_for_model(model_name))
-    if missing:
-        detail = tags.get("security.last_failure", "")
-        msg = f"missing passed gates: {', '.join(missing)}"
-        if detail:
-            msg += f" — {detail}"
-        return False, msg
-
-    if tags.get("security.scan_status") != "passed":
-        reason = tags.get("security.last_failure", "security.scan_status != passed")
-        return False, reason
-
-    if tags.get("security.signed") != "true":
-        return False, "no valid attestation on this MLflow version (run pipeline first)"
-
     external = requires_mlsecops_approval(tags, model_name)
+
+    if not external:
+        missing = check_gate_tags(tags, required_gates_for_model(model_name, tags))
+        if missing:
+            detail = tags.get("security.last_failure", "")
+            msg = f"missing passed gates: {', '.join(missing)}"
+            if detail:
+                msg += f" — {detail}"
+            return False, msg
+        if tags.get("security.signed") != "true":
+            return False, "no valid attestation on this MLflow version (run pipeline first)"
+    elif tags.get("security.scan_status") == "failed":
+        return False, tags.get("security.last_failure", "security.scan_status failed")
+
+    if tags.get("security.scan_status") not in ("passed", "pending") and not external:
+        return False, tags.get("security.last_failure", "security.scan_status != passed")
+
     if external:
         if actor_role != "mlsecops":
             return False, (
-                "external model requires MLSecOps approval "
-                "(register in MLflow with security.origin=external)"
+                "uploaded model: deploy в Production только через MLSecOps "
+                "(кнопка «Одобрить + Deploy»)"
             )
         if not tags.get("security.approved_by") and not approved_by:
-            return False, "HITL required: MLSecOps must approve external model"
+            return False, "HITL required: MLSecOps must approve uploaded model"
     elif actor_role not in ("ds", "mlsecops"):
         return False, f"role {actor_role} may not promote (only ds or mlsecops)"
 

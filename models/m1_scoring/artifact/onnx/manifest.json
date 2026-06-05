@@ -1,6 +1,0 @@
-{
-  "algorithm": "sha256",
-  "digest": "5ad0926aa66e8415cc4f473f41a56566bc522267a79d0694df5053734301fa10",
-  "file": "model.onnx",
-  "signed_at": "2026-06-05T04:33:17.280351+00:00"
-}

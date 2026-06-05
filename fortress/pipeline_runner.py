@@ -1,4 +1,4 @@
-"""Запуск CI pipeline из приложения."""
+"""Запуск platform pipeline из приложения."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def run_pipeline(*, model_key: str = "all", actor: str = "system") -> tuple[bool, str]:
+def run_pipeline(*, actor: str = "system") -> tuple[bool, str]:
     script = ROOT / "scripts" / "ci" / "run_pipeline.py"
     if not script.exists():
         return False, f"pipeline script not found: {script}"
@@ -18,7 +18,6 @@ def run_pipeline(*, model_key: str = "all", actor: str = "system") -> tuple[bool
     env = {
         **os.environ,
         "PYTHONPATH": str(ROOT),
-        "MODEL_KEY": model_key,
         "PIPELINE_ACTOR": actor,
     }
     r = subprocess.run(

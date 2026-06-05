@@ -13,13 +13,12 @@ case "$cmd" in
 FORTRESS CLI (runs inside Docker — same on Linux/macOS/Windows)
 
   bootstrap      DB migrations + MLflow experiments
-  train          Train M1, M2, M3
-  pipeline       CI: DATA → code → train → artifacts → sign
-  demo           Full demo (bootstrap + pipeline + register + API checks)
+  pipeline       Platform: DATA → code gates → sign attestation
+  demo           Legacy security demo script
   test           pytest smoke + attestation
-  gates          Security gates (PROFILE=fast|strict MODEL=m1)
-  deploy         Promote internal model to Production (MODEL VERSION ACTOR)
-  deploy-precheck  Verify attestation + G12 before deploy
+  gates          Security gates (PROFILE=fast|strict)
+  deploy         Promote model to Production (MODEL VERSION ACTOR)
+  deploy-precheck  Verify G12 before deploy
   ingest         Ingest dataset: ingest FILE --name N --version V ...
   shell          Interactive bash
   wait           Wait for postgres + mlflow
@@ -28,17 +27,13 @@ Host only (./fortress or fortress.ps1):
   up             docker compose up -d --build
   down           docker compose down
   ps|logs        docker compose ps / logs
-  all            up → bootstrap → train → pipeline
+  all            up → bootstrap → pipeline
 EOF
     ;;
   bootstrap)
     exec /app/scripts/fortress/bootstrap.sh "$@"
     ;;
-  train|train-all)
-    exec /app/scripts/fortress/train-all.sh "$@"
-    ;;
   pipeline|ci-pipeline)
-    export WAIT_LITELLM=1
     /app/scripts/fortress/wait-services.sh
     exec python /app/scripts/ci/run_pipeline.py "$@"
     ;;
@@ -83,7 +78,6 @@ EOF
     ;;
   gates|security)
     export PROFILE="${PROFILE:-fast}"
-    export MODEL="${MODEL:-m1}"
     if [ -x /app/scripts/run_gates.sh ]; then
       exec bash /app/scripts/run_gates.sh "$@"
     fi

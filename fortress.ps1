@@ -49,17 +49,16 @@ switch ($Command) {
         Invoke-Fortress $all
     }
     "pipeline" {
-        docker compose up -d keycloak litellm
+        docker compose up -d keycloak
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         Invoke-Fortress @("pipeline")
     }
     "all" {
-        docker compose up -d --build postgres minio minio-init keycloak mlflow keycloak-bootstrap oauth2-proxy-mlflow api-scoring api-antifraud litellm dashboard jupyter
+        docker compose up -d --build postgres minio minio-init keycloak mlflow keycloak-bootstrap oauth2-proxy-mlflow dashboard jupyter
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         docker compose up keycloak-bootstrap
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         Invoke-Fortress @("bootstrap")
-        Invoke-Fortress @("train")
         Invoke-Fortress @("pipeline")
         Write-Host "Open: FORTRESS http://localhost:8502 | MLflow http://localhost:5000 | Jupyter http://localhost:8888"
     }

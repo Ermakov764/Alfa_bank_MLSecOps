@@ -26,7 +26,7 @@ def test_model_card_rejects_todo() -> None:
 
 def test_model_card_valid() -> None:
     card = ModelCard(
-        name="credit-scoring-pd",
+        name="my-model",
         version="1.0",
         owner="team",
         purpose="scoring",
@@ -64,14 +64,15 @@ def test_g12_blocks_ds_on_external() -> None:
     assert "mlsecops" in msg.lower() or "external" in msg.lower()
 
 
-def test_g12_allows_ds_on_ci_trained() -> None:
+def test_g12_allows_ds_on_ci_trained_legacy_tags() -> None:
+    """Legacy ci_trained tag still supported if explicitly set on a version."""
     tags = _full_gate_tags()
     tags["security.origin"] = "ci_trained"
     tags["model_card"] = (
-        '{"name":"credit-scoring-pd","version":"1","tier":"HIGH","owner":"t",'
-        '"purpose":"ci trained scoring","data_sources":"internal","limitations":"none"}'
+        '{"name":"legacy-ci","version":"1","tier":"HIGH","owner":"t",'
+        '"purpose":"ci trained","data_sources":"internal","limitations":"none"}'
     )
-    ok, msg = check_promote_policy(tags, "credit-scoring-pd", actor_role="ds")
+    ok, msg = check_promote_policy(tags, "legacy-ci", actor_role="ds")
     assert ok, msg
 
 
