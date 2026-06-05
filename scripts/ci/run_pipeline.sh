@@ -10,7 +10,7 @@ export RUN_ID
 export CORRELATION_ID="${CORRELATION_ID:-$($PYTHON -c 'import uuid;print(uuid.uuid4())')}"
 export ARTIFACTS_DIR="${ARTIFACTS_DIR:-$ROOT/artifacts}"
 MODEL_KEY="${MODEL_KEY:-m1}"
-MODEL_NAME="${MODEL_NAME:-credit-scoring-pd}"
+MODEL_NAME="$("$PYTHON" -c "import sys; sys.path.insert(0,'.'); from fortress.registry_policy import ci_model_name; print(ci_model_name('${MODEL_KEY}'))")"
 
 echo "=== FORTRESS Pipeline run_id=$RUN_ID corr=$CORRELATION_ID ==="
 

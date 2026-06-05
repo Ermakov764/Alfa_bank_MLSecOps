@@ -82,3 +82,13 @@ def ci_registry_entry(model_name: str) -> dict[str, str] | None:
         if row["name"] == model_name:
             return row
     return None
+
+
+def ci_model_name(model_key: str) -> str:
+    """MLflow registry name for pipeline key (m1/m2/m3) or 'all'."""
+    if model_key == "all":
+        return "all"
+    for row in CI_MODEL_REGISTRY:
+        if row["key"] == model_key:
+            return row["name"]
+    raise ValueError(f"unknown model_key: {model_key}")

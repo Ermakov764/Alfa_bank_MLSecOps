@@ -57,15 +57,18 @@ def verify_code_gate_reports() -> tuple[bool, str]:
 
 
 def verify_onnx_artifacts(model_key: str) -> tuple[bool, str]:
-    if model_key == "m2":
-        onnx = ROOT / "artifacts/models/m2_antifraud/onnx/model.onnx"
-    elif model_key == "m1":
-        onnx = ROOT / "models/m1_scoring/artifact/onnx/model.onnx"
-    else:
-        joblib = ROOT / "models/m3_nlp/artifact/intent_pipeline.joblib"
+    from fortress.registry_policy import CI_MODEL_REGISTRY
+
+    row = next((r for r in CI_MODEL_REGISTRY if r["key"] == model_key), None)
+    if row is None:
+        return False, f"unknown model_key: {model_key}"
+    art = ROOT / row["artifact"]
+    if model_key == "m3":
+        joblib = art / "intent_pipeline.joblib"
         if not joblib.exists():
             return False, f"M3 artifact missing: {joblib}"
         return True, f"M3 joblib ok sha256={_sha256(joblib)[:16]}"
+    onnx = art / "onnx" / "model.onnx"
     if not onnx.exists():
         return False, f"ONNX missing: {onnx}"
     manifest = onnx.parent / "manifest.json"

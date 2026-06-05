@@ -139,6 +139,7 @@ def main() -> int:
 
     # --- Verify artifacts on disk (mandatory) ---
     from fortress.gate_verifier import verify_onnx_artifacts
+    from fortress.registry_policy import ci_model_name
 
     for mk in keys:
         aok, amsg = verify_onnx_artifacts(mk)
@@ -153,7 +154,7 @@ def main() -> int:
 
     run_py(
         ["scripts/ci/sign_attestation.py", "--run-id", run_id,
-         "--model", "all" if model_key == "all" else os.getenv("MODEL_NAME", "credit-scoring-pd"),
+         "--model", ci_model_name(model_key),
          "--model-key", model_key,
          "--correlation-id", corr,
          "--strict"],

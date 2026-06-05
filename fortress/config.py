@@ -51,5 +51,10 @@ def jupyter_public_url() -> str:
     return public_url("JUPYTER_PUBLIC_URI", "http://localhost:8888")
 
 
+def keycloak_account_url() -> str:
+    realm = os.getenv("KEYCLOAK_REALM", "mlsecops")
+    return f"{keycloak_public_url()}/realms/{realm}/account"
+
+
 def strict_audit() -> bool:
     return os.getenv("FORTRESS_STRICT_AUDIT", "true").lower() in ("1", "true", "yes")

@@ -28,7 +28,7 @@ Host only (./fortress or fortress.ps1):
   up             docker compose up -d --build
   down           docker compose down
   ps|logs        docker compose ps / logs
-  all            up → bootstrap → train → demo
+  all            up → bootstrap → train → pipeline
 EOF
     ;;
   bootstrap)

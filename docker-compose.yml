@@ -162,7 +162,7 @@ services:
       DASHBOARD_PORT: ${DASHBOARD_PORT:-8502}
     depends_on:
       keycloak:
-        condition: service_started
+        condition: service_healthy
     restart: "on-failure"
 
   oauth2-proxy-mlflow:
@@ -307,8 +307,8 @@ services:
         condition: service_healthy
       mlflow:
         condition: service_healthy
-      keycloak:
-        condition: service_started
+      keycloak-bootstrap:
+        condition: service_completed_successfully
 
   jupyter:
     build:

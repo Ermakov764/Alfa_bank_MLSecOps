@@ -226,7 +226,7 @@ def download_dataset_csv(run_id: str, dest_dir: Path) -> Path | None:
         return dest
 
 
-def sync_pending_runs(actor: str, *, expected_cols: str = "amount,age,target") -> list[dict[str, str]]:
+def sync_pending_runs(actor: str, *, expected_cols: str = "") -> list[dict[str, str]]:
     """
     Найти runs без финального статуса (или pending) и прогнать DATA gate.
     Для кнопки «Обновить из MLflow» в UI.

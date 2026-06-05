@@ -60,7 +60,7 @@ switch ($Command) {
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         Invoke-Fortress @("bootstrap")
         Invoke-Fortress @("train")
-        Invoke-Fortress @("demo")
+        Invoke-Fortress @("pipeline")
         Write-Host "Open: FORTRESS http://localhost:8502 | MLflow http://localhost:5000 | Jupyter http://localhost:8888"
     }
     default {

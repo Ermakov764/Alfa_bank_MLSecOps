@@ -11,7 +11,6 @@ import requests
 KEYCLOAK_URL = os.getenv("KEYCLOAK_URL", "http://keycloak:8080").rstrip("/")
 KEYCLOAK_REALM = os.getenv("KEYCLOAK_REALM", "mlsecops")
 KEYCLOAK_CLIENT = os.getenv("KEYCLOAK_CLIENT_ID", "fortress-ui")
-KEYCLOAK_PUBLIC_URL = os.getenv("KEYCLOAK_PUBLIC_URL", "http://localhost:8080").rstrip("/")
 
 
 @dataclass
@@ -138,8 +137,7 @@ def authenticate_with_message(username: str, password: str) -> tuple[SessionUser
         role = _role_from_token(payload)
         email = payload.get("email", "")
     except Exception:
-        role = "ds"
-        email = ""
+        return None, "Не удалось прочитать токен Keycloak — повторите вход"
 
     return SessionUser(
         username=username,
@@ -172,8 +170,12 @@ def register_and_login(
 
 
 def mlflow_public_url() -> str:
-    return os.getenv("MLFLOW_PUBLIC_URI", "http://localhost:5000")
+    from fortress.config import mlflow_public_url as _url
+
+    return _url()
 
 
 def keycloak_account_url() -> str:
-    return f"{KEYCLOAK_PUBLIC_URL}/realms/{KEYCLOAK_REALM}/account"
+    from fortress.config import keycloak_account_url as _url
+
+    return _url()

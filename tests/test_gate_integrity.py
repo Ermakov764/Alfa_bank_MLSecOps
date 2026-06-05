@@ -106,6 +106,15 @@ def test_07_internal_models_only() -> None:
     assert "evil-external-model" not in INTERNAL_MODELS
 
 
+def test_07b_ci_model_name_from_registry() -> None:
+    from fortress.registry_policy import ci_model_name
+
+    assert ci_model_name("m1") == "credit-scoring-pd"
+    assert ci_model_name("m2") == "transaction-antifraud"
+    assert ci_model_name("m3") == "support-nlp"
+    assert ci_model_name("all") == "all"
+
+
 def test_08_m1_onnx_artifact_exists_after_train() -> None:
     onnx = ROOT / "models/m1_scoring/artifact/onnx/model.onnx"
     if not onnx.exists():

@@ -31,11 +31,15 @@ def _git_commit() -> str:
 def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--run-id", required=True)
-    p.add_argument("--model", default="credit-scoring-pd")
+    p.add_argument("--model", default=None, help="MLflow name; default from --model-key via CI registry")
     p.add_argument("--model-key", default="m1")
     p.add_argument("--correlation-id", default=os.getenv("CORRELATION_ID", ""))
     p.add_argument("--strict", action="store_true", help="Require pipeline_runs + artifacts")
     args = p.parse_args()
+
+    from fortress.registry_policy import ci_model_name
+
+    model_name = args.model if args.model is not None else ci_model_name(args.model_key)
 
     corr = args.correlation_id or args.run_id
     ensure_keypair()
@@ -61,7 +65,7 @@ def main() -> int:
             "model": {"status": "passed", "gates": ["G5", "G8", "G9"]},
         }
 
-    payload = build_attestation(corr, elements, model_name=args.model, commit=_git_commit())
+    payload = build_attestation(corr, elements, model_name=model_name, commit=_git_commit())
     signed = sign_attestation(payload)
     out = ROOT / "artifacts/attestation/fortress-attestation.signed.json"
     save_signed(out, signed)
@@ -69,7 +73,7 @@ def main() -> int:
 
     record_pipeline_step(
         args.run_id, "sign", "passed",
-        model_name=args.model,
+        model_name=model_name,
         report_path=str(out),
         correlation_id=corr,
         details={"algorithm": "ed25519", "strict": args.strict},
