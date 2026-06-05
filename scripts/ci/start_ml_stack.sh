@@ -18,12 +18,12 @@ export MLFLOW_TRACKING_URI="${MLFLOW_TRACKING_URI:-http://${MLFLOW_HOST}:${MLFLO
 export DATABASE_URL="${DATABASE_URL:-postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:5432/${POSTGRES_DB}}"
 
 echo "==> Wait for Postgres at ${POSTGRES_HOST}..."
-for i in $(seq 1 30); do
+for i in $(seq 1 60); do
   if PGPASSWORD="$POSTGRES_PASSWORD" pg_isready -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" >/dev/null 2>&1; then
     echo "Postgres ready"
     break
   fi
-  if [ "$i" -eq 30 ]; then
+  if [ "$i" -eq 60 ]; then
     echo "Postgres not ready" >&2
     exit 1
   fi

@@ -71,12 +71,14 @@ jobs:
           --health-timeout 5s
           --health-retries 12
     env:
-      POSTGRES_HOST: postgres
+      # In GitHub Actions (job runs on host, not in a container),
+      # service containers are reachable via localhost + mapped port.
+      POSTGRES_HOST: 127.0.0.1
       POSTGRES_USER: mlsecops
       POSTGRES_PASSWORD: changeme
       POSTGRES_DB: mlsecops
-      DATABASE_URL: postgresql://mlsecops:changeme@postgres:5432/mlsecops
-      MLFLOW_BACKEND_STORE_URI: postgresql://mlsecops:changeme@postgres:5432/mlsecops
+      DATABASE_URL: postgresql://mlsecops:changeme@127.0.0.1:5432/mlsecops
+      MLFLOW_BACKEND_STORE_URI: postgresql://mlsecops:changeme@127.0.0.1:5432/mlsecops
       MLFLOW_DEFAULT_ARTIFACT_ROOT: file:///tmp/mlflow-artifacts
       MLFLOW_TRACKING_URI: http://127.0.0.1:5000
     steps:
