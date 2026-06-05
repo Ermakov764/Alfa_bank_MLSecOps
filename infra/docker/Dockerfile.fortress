@@ -44,5 +44,6 @@ ENV PYTHONPATH=/app \
     API_ANTIFRAUD_URL=http://api-antifraud:8002 \
     LITELLM_URL=http://litellm:4000
 
-ENTRYPOINT ["/app/scripts/fortress/entrypoint.sh"]
+# bash wrapper: bind-mount .:/app on Windows/Linux may drop +x from the image layer
+ENTRYPOINT ["bash", "/app/scripts/fortress/entrypoint.sh"]
 CMD ["help"]
