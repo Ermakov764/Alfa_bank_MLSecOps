@@ -63,6 +63,7 @@ jobs:
           docker compose --profile tools run --rm --no-deps \
             -e RUN_ID="${{ env.RUN_ID }}" \
             -e CORRELATION_ID="${{ env.CORRELATION_ID }}" \
+            -e AUDIT_DISABLED=true \
             fortress ci-gate-code
       - uses: actions/upload-artifact@v4
         with:

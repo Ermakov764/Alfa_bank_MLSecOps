@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# G3b — typosquat / malicious PyPI metadata
+# G3b — typosquat / malicious PyPI metadata (guarddog CLI)
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -14,7 +14,7 @@ if [ -f "$FIXTURE" ] && [ "${GUARDDOG_SCAN_TARGET:-}" = "$FIXTURE" ]; then
 fi
 
 if command -v guarddog >/dev/null 2>&1; then
-  guarddog pypi scan -r requirements.txt && { echo "G3b PASS"; exit 0; }
+  python3 "$ROOT/scripts/gates/g3b_guarddog.py" && { echo "G3b PASS"; exit 0; }
 fi
 
 if [ "$STRICT" = "true" ]; then

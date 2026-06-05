@@ -27,8 +27,18 @@ PII_ENTITY_TYPES = frozenset({
 @lru_cache(maxsize=1)
 def _analyzer():
     from presidio_analyzer import AnalyzerEngine
+    from presidio_analyzer.nlp_engine import NlpEngineProvider
 
-    return AnalyzerEngine()
+    # Use en_core_web_sm baked into fortress image (avoid 587MB en_core_web_lg download in CI)
+    configuration = {
+        "nlp_engine_name": "spacy",
+        "models": [{"lang_code": "en", "model_name": "en_core_web_sm"}],
+    }
+    provider = NlpEngineProvider(nlp_configuration=configuration)
+    return AnalyzerEngine(
+        nlp_engine=provider.create_engine(),
+        supported_languages=["en"],
+    )
 
 
 def scan_text(value: str, *, languages: tuple[str, ...] = ("en",)) -> list[dict[str, Any]]:

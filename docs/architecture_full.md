@@ -214,7 +214,7 @@ flowchart TB
   end
 
   subgraph L6 [Слой 6 Релиз]
-    G12[G12 registry policy HITL]
+    G12[G12 registry policy Human Approve]
   end
 
   subgraph L7 [Слой 7 Runtime]
@@ -265,7 +265,7 @@ flowchart TB
 | **T5** | Model extraction через API | G14 |
 | **T6** | Prompt injection (LLM) | G10, G13 |
 | **T7** | Подмена модели в registry | G7, G12, hash-chain audit |
-| **T8** | Несанкционированный promote | RBAC Keycloak, G12, HITL |
+| **T8** | Несанкционированный promote | RBAC Keycloak, G12, Human Approve |
 | **T9** | Data poisoning | **DATA** |
 | **T10** | Adversarial evasion (tabular) | G9 (+ мониторинг G15 backlog) |
 
@@ -283,7 +283,7 @@ stateDiagram-v2
   Training --> Staging: register_model + gates tags
 
   Staging --> Staging: gate failed / open findings
-  Staging --> Approved: mlsecops HITL tier HIGH
+  Staging --> Approved: mlsecops Human Approve tier HIGH
   Staging --> Production: G12 promote mlsecops
   Approved --> Production: G12 after Approve
 

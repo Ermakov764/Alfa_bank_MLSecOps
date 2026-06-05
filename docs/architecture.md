@@ -160,7 +160,7 @@ stateDiagram-v2
   Training --> Staging: register_model + gates
 
   Staging --> Staging: gate failed / findings
-  Staging --> Approved: mlsecops HITL tier HIGH
+  Staging --> Approved: mlsecops Human Approve tier HIGH
   Staging --> Production: G12 promote
   Approved --> Production: G12 promote
 

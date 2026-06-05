@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import urllib.request
 from typing import Any
+
+import httpx
 
 from fortress.keycloak_admin import keycloak_reachable
 from fortress.config import (
@@ -17,8 +18,9 @@ from fortress.config import (
 def _probe(url: str, path: str = "/") -> bool:
     try:
         req = url.rstrip("/") + path
-        with urllib.request.urlopen(req, timeout=3) as resp:
-            return resp.status < 500
+        with httpx.Client(timeout=3.0, follow_redirects=True) as client:
+            resp = client.get(req)
+            return resp.status_code < 500
     except Exception:
         return False
 
