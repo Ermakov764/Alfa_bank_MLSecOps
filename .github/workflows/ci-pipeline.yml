@@ -26,7 +26,7 @@ env:
   COMPOSE_STACK: >-
     postgres minio minio-init keycloak mlflow oauth2-proxy-mlflow
     api-scoring api-antifraud litellm dashboard
-  COMPOSE_BUILD: mlflow api-scoring api-antifraud litellm dashboard fortress
+  COMPOSE_BUILD: keycloak mlflow api-scoring api-antifraud litellm dashboard fortress
 
 jobs:
   gate-data:
@@ -80,24 +80,19 @@ jobs:
           path: artifacts
       - run: docker compose build ${{ env.COMPOSE_BUILD }}
       - name: Start prod-like stack (Postgres + MinIO/S3 + MLflow + UI)
-        run: docker compose up -d ${{ env.COMPOSE_STACK }}
-      - name: Wait for stack + bootstrap
         run: |
-          docker compose --profile tools run --rm \
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml \
+            up -d --wait --wait-timeout 600 ${{ env.COMPOSE_STACK }}
+      - name: Bootstrap MLflow experiments
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml --profile tools run --rm \
             -e RUN_ID="${{ env.RUN_ID }}" \
             -e CORRELATION_ID="${{ env.CORRELATION_ID }}" \
             fortress bootstrap
       - name: Verify dashboard UI is up
         run: |
-          for i in $(seq 1 40); do
-            if curl -sf http://localhost:8502/_stcore/health >/dev/null; then
-              echo "Dashboard OK (http://localhost:8502)"
-              exit 0
-            fi
-            sleep 3
-          done
-          docker compose logs --no-color --tail=80 dashboard
-          exit 1
+          curl -sf http://localhost:8502/_stcore/health
+          echo "Dashboard OK (http://localhost:8502)"
       - name: Train M1/M2/M3 (fortress container)
         run: |
           docker compose --profile tools run --rm \
@@ -128,7 +123,9 @@ jobs:
           path: .
       - run: docker compose build ${{ env.COMPOSE_BUILD }}
       - name: Start stack for artifact gates
-        run: docker compose up -d postgres minio minio-init mlflow
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml \
+            up -d --wait --wait-timeout 300 postgres minio minio-init mlflow
       - name: G6/G7 artifact gates (fortress container)
         run: |
           docker compose --profile tools run --rm \
@@ -159,7 +156,9 @@ jobs:
           path: .
       - run: docker compose build ${{ env.COMPOSE_BUILD }}
       - name: Start full stack (G10 needs LiteLLM)
-        run: docker compose up -d ${{ env.COMPOSE_STACK }}
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml \
+            up -d --wait --wait-timeout 600 ${{ env.COMPOSE_STACK }}
       - name: G5/G8/G9/G10 model gates (fortress container)
         run: |
           docker compose --profile tools run --rm \

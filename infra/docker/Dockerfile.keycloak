@@ -1,0 +1,8 @@
+# Keycloak + curl for reliable healthcheck (base image has no curl).
+FROM quay.io/keycloak/keycloak:24.0
+
+USER root
+RUN microdnf install -y curl && microdnf clean all
+COPY infra/docker/keycloak-healthcheck.sh /opt/keycloak-healthcheck.sh
+RUN chmod +x /opt/keycloak-healthcheck.sh
+USER 1000
