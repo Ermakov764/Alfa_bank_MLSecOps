@@ -1,0 +1,9 @@
+title = "FORTRESS gitleaks config"
+
+[allowlist]
+description = "Allow example env files and generated artifacts"
+paths = [
+  '''^\.env\.example$''',
+  '''^artifacts/''',
+]
+

@@ -9,7 +9,11 @@ mkdir -p "$OUT"
 STRICT="${GATE_STRICT:-false}"
 
 if command -v gitleaks >/dev/null 2>&1; then
-  gitleaks detect --source . --no-git -v --report-path "$OUT/gitleaks.json" || exit 1
+  CFG_ARGS=()
+  if [ -f ".gitleaks.toml" ]; then
+    CFG_ARGS+=(--config ".gitleaks.toml")
+  fi
+  gitleaks detect --source . --no-git -v "${CFG_ARGS[@]}" --report-path "$OUT/gitleaks.json" || exit 1
   echo "G0 PASS (gitleaks)"
   exit 0
 fi
