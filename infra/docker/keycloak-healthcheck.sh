@@ -1,13 +1,9 @@
 #!/usr/bin/env bash
-# Keycloak image has no curl; probe /health/ready via bash TCP or curl if present.
+# Keycloak 24 dev mode: /health/* needs KC_HEALTH_ENABLED + kc build; realm probe works out of the box.
 set -euo pipefail
-URL="http://127.0.0.1:8080/health/ready"
-if command -v curl >/dev/null 2>&1; then
-  curl -fsS "$URL" >/dev/null
-  exit 0
-fi
+PROBE_PATH="${KEYCLOAK_HEALTH_PATH:-/realms/mlsecops}"
 exec 3<>/dev/tcp/127.0.0.1/8080
-printf 'GET /health/ready HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n' >&3
+printf 'GET %s HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n' "$PROBE_PATH" >&3
 read -r line <&3 || true
 exec 3<&-
 exec 3>&-

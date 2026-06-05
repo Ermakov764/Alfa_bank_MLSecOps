@@ -13,6 +13,7 @@ case "$cmd" in
 FORTRESS CLI (runs inside Docker — same on Linux/macOS/Windows)
 
   bootstrap      DB migrations + MLflow experiments
+  train          Train M1, M2, M3
   pipeline       Platform: DATA → code gates → sign attestation
   demo           Legacy security demo script
   test           pytest smoke + attestation
@@ -32,6 +33,9 @@ EOF
     ;;
   bootstrap)
     exec /app/scripts/fortress/bootstrap.sh "$@"
+    ;;
+  train|train-all)
+    exec /app/scripts/fortress/train-all.sh "$@"
     ;;
   pipeline|ci-pipeline)
     /app/scripts/fortress/wait-services.sh
@@ -66,7 +70,6 @@ EOF
     exec python /app/scripts/ci/sign_attestation.py \
       --run-id "${RUN_ID:-local}" \
       --model all \
-      --model-key all \
       --correlation-id "${CORRELATION_ID:-local}" \
       --strict
     ;;
